@@ -11,7 +11,7 @@ from flask import Flask, request, session, url_for, redirect, render_template, g
 # Configuration
 ################################################################################
 
-DATABASE_PATH = '../whoknows.db'
+DATABASE_PATH = '../db/whoknows.db'
 PER_PAGE = 30
 DEBUG = False
 SECRET_KEY = 'development key'
@@ -45,7 +45,7 @@ def check_db_exists():
 def init_db():
     """Creates the database tables."""
     with closing(connect_db(init_mode=True)) as db:
-        with app.open_resource('../schema.sql') as f:
+        with app.open_resource('../schema/schema.sql') as f:
             db.cursor().executescript(f.read().decode('utf-8'))
         db.commit()
         print("Initialized the database: " + str(DATABASE_PATH))
