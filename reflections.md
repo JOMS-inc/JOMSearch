@@ -16,3 +16,5 @@ choice to go with a project for our github organization.
 **Reflections of file structure**: We decided to go with a mono repo. Therefore we are making a new folder in our repository called "python_legacy" containing the legacy code. After that we are moving the db and schemas out of that folder and into a new folder for db structure. Lastly we are making a new folder for the new Go code.
 
 **Reflections on gradual rewriting**: We've decided to make small changes to gradually implement the new endpoints, making sure they're tested and working. When they are working, we comment out the corresponding legacy code.
+
+**Branching strategy**: Branches should be kept short lived only fixing one endpoint at a time. 
