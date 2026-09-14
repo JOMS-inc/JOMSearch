@@ -13,16 +13,16 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-    dbPath = "../db/whoknows.db"
+	dbPath := "../db/whoknows.db"
 
     conn, err := db.Open(dbPath)
-    if err != nill {
+    if err != nil {
         log.Fatalf("failed to open db: %v", err)
     }
 
     defer conn.Close()
 
-    mux := hhtp.NewServeMux()
+    mux := http.NewServeMux()
     mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request){
         w.Write([]byte("ok"))
     })

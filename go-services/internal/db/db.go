@@ -1,13 +1,13 @@
 package db 
 
-import {
+import (
 	"database/sql"
 
 	_"modernc.org/sqlite"
-}
+)
 
 func Open(path string) (*sql.DB, error) {
-	conn, err :* sql.Open("sqlite", path)
+	conn, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, err
 	}
