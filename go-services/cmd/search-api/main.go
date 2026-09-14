@@ -5,6 +5,7 @@ import (
     "log"
     "net/http"
 
+    "github.com/JOMS-inc/JOMSearch/go-services/internal/api"
     "github.com/JOMS-inc/JOMSearch/go-services/internal/db"
 )
 
@@ -26,6 +27,8 @@ func main() {
     mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request){
         w.Write([]byte("ok"))
     })
+
+    api.RegisterRoutes(mux)
 
     log.Println("listening on :8080")
     log.Fatal(http.ListenAndServe(":8080", mux))
