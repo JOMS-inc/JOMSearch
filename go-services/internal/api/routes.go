@@ -6,5 +6,7 @@ import (
 )
 
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
-	mux.HandleFunc("GET /", Root(db))
+	mux.HandleFunc("GET /{$}", Root(db))
+	mux.HandleFunc("GET /register", RegisterHandler)
+	mux.HandleFunc("GET /login", LoginHandler)
 }
