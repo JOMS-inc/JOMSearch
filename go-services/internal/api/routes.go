@@ -1,7 +1,10 @@
-package api;
+package api
 
-import "net/http"
+import (
+	"database/sql"
+	"net/http"
+)
 
-func RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /", Root)
+func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
+	mux.HandleFunc("GET /", Root(db))
 }
