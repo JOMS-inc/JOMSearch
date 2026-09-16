@@ -1,6 +1,6 @@
 {{define "title"}}Sign In{{end}}
 
-{{define "content"}}
+{{define "body"}}
 <h2>Log In</h2>
 {{if .Error}}<div class="error"><strong>Error:</strong> {{.Error}}</div>{{end}}
 <form action="/api/login" method="POST">
