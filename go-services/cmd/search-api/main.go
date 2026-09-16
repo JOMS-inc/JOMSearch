@@ -29,6 +29,7 @@ func main() {
     })
 
     api.RegisterRoutes(mux)
+    api.RegisterSearchRoutes(mux)
 
     log.Println("listening on :8080")
     log.Fatal(http.ListenAndServe(":8080", mux))
