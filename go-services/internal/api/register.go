@@ -1,4 +1,3 @@
-// internal/api/register.go
 package api
 
 import (
@@ -6,6 +5,8 @@ import (
 
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/templates"
 )
+
+var registerTmpl = templates.Page("register.html")
 
 type registerPageData struct {
 	templates.BaseData
@@ -22,5 +23,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := registerPageData{}
 
-	templates.Templates.ExecuteTemplate(w, "layout.html", data)
+	if err := registerTmpl.ExecuteTemplate(w, "layout.html", data); err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
 }
