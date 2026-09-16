@@ -1,20 +1,16 @@
-// internal/api/auth.go
 package api
 
 import (
 	"net/http"
 
 	"github.com/gorilla/sessions"
+
+	"github.com/JOMS-inc/JOMSearch/go-services/internal/templates"
 )
 
 var store = sessions.NewCookieStore([]byte("your-secret-key-change-me"))
 
-type User struct {
-	ID    int64
-	Email string
-}
-
-func currentUser(r *http.Request) *User {
+func currentUser(r *http.Request) *templates.User {
 	session, err := store.Get(r, "session")
 	if err != nil {
 		return nil
@@ -25,5 +21,5 @@ func currentUser(r *http.Request) *User {
 		return nil
 	}
 
-	return &User{Email: email} // you'd normally look up full user from db by ID
+	return &templates.User{Email: email} // TODO: slå fuld bruger (inkl. Username) op i db
 }

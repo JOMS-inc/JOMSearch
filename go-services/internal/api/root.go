@@ -2,11 +2,12 @@ package api
 
 import (
 	"database/sql"
-	"html/template"
 	"net/http"
+
+	"github.com/JOMS-inc/JOMSearch/go-services/internal/templates"
 )
 
-var searchTmpl = template.Must(template.ParseFiles("templates/layout.html", "templates/search.html"))
+var searchTmpl = templates.Page("search.html")
 
 type SearchResult struct {
 	URL         string `json:"url"`
@@ -15,6 +16,7 @@ type SearchResult struct {
 }
 
 type SearchPageData struct {
+	templates.BaseData
 	Query         string
 	SearchResults []SearchResult
 }
