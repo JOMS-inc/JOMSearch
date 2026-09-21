@@ -63,9 +63,10 @@ func LoginSubmitHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		var id int64
+		var email string
 		var stored string
-		err := db.QueryRow(`SELECT id, password FROM users WHERE username = ?`, username).
-			Scan(&id, &stored)
+		err := db.QueryRow(`SELECT id, email, password FROM users WHERE username = ?`, username).
+			Scan(&id, &email, &stored)
 		if err == sql.ErrNoRows {
 			renderErr("Invalid username or password.")
 			return
@@ -87,7 +88,7 @@ func LoginSubmitHandler(db *sql.DB) http.HandlerFunc {
 			}
 		}
 
-		if err := createSession(w, id); err != nil {
+		if err := loginSession(w, r, email); err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -108,9 +109,18 @@ func looksLikeMD5(stored string) bool {
 
 // checkPassword verifies password against stored, which may be either a
 // bcrypt hash (new rows) or a legacy bare MD5 hex digest (old seed data).
+//
+// SECURITY NOTE: MD5 is cryptographically broken and must never be used for
+// new password storage — bcrypt.GenerateFromPassword (see register.go) is
+// the only path that creates new rows, so this branch only ever runs
+// against pre-existing legacy data (e.g. the seeded 'admin' row) that
+// predates this codebase using bcrypt. LoginSubmitHandler rewrites the row
+// to a bcrypt hash immediately after a successful legacy match, so this
+// branch is self-eliminating: once every row has logged in once, it is
+// dead code and should be deleted.
 func checkPassword(password, stored string) bool {
 	if looksLikeMD5(stored) {
-		sum := md5.Sum([]byte(password))
+		sum := md5.Sum([]byte(password)) // #nosec G401 -- legacy hash verification only, see note above; never used to create new hashes
 		return hex.EncodeToString(sum[:]) == stored
 	}
 	return bcrypt.CompareHashAndPassword([]byte(stored), []byte(password)) == nil
