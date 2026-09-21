@@ -1,6 +1,8 @@
-Created: 21. sep. 2026
+# Branching Strategy
 
-Last revised: 21. sep. 2026
+**Created:** 21. sep. 2026
+
+**Last revised:** 21. sep. 2026
 
 
 **What version control stragety did you choose and how did you actually do it/enforce it?**
