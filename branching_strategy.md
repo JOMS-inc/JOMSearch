@@ -11,3 +11,9 @@ We already worked with a similar stragety, so the transition would be easier and
 
 **What advantages and disatvantages did you run into during the course?**
 TBC
+
+# Branch protection rules
+
+**Main cannot receive direct pushes**: We are not allowed to push directly into the main branch. 
+
+We're continuously discussing other protection rules.
