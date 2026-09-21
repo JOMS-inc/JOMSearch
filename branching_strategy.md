@@ -12,4 +12,10 @@ We have decided to use GitFlow as our branching strategy. We where already losel
 We already worked with a similar stragety, so the transition would be easier and more clean. The reason we didn't choose others is convenience and simplicity.
 
 **What advantages and disatvantages did you run into during the course?**
+
 TBC
+
+# Branch protection rules
+
+Currently we have implemented one protection rule, that being we can't push directly to main.
+We will discuss and revise throughout the projects lifetime what other rules we want to apply.
