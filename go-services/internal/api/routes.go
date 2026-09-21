@@ -21,6 +21,9 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 
 // LogoutHandler clears the current session and redirects to /login.
 func LogoutHandler(w http.ResponseWriter, r *http.Request) {
-	clearSession(w, r)
+	if err := logoutSession(w, r); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }

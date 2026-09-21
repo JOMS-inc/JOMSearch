@@ -78,7 +78,7 @@ func RegisterSubmitHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		res, err := db.Exec(
+		_, err = db.Exec(
 			`INSERT INTO users (username, email, password) VALUES (?, ?, ?)`,
 			username, email, string(hash),
 		)
@@ -92,13 +92,7 @@ func RegisterSubmitHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		newID, err := res.LastInsertId()
-		if err != nil {
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-
-		if err := createSession(w, newID); err != nil {
+		if err := loginSession(w, r, email); err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
