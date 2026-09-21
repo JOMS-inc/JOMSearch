@@ -1,0 +1,35 @@
+{{define "body"}}
+<h1>Vejret</h1>
+
+<form method="get" action="/weather">
+  <label for="city">By:</label>
+  <select name="city" id="city">
+    {{range .Cities}}
+    <option value="{{.Name}}"{{if eq .Name $.Selected}} selected{{end}}>{{.Name}}</option>
+    {{end}}
+  </select>
+  <button type="submit">Vis vejr</button>
+</form>
+
+{{if .Error}}
+<p>{{.Error}}</p>
+{{else if .Weather}}
+<h2>{{.Selected}}</h2>
+<p>{{.Description}}</p>
+<table>
+  <tr>
+    <th scope="row">Temperatur</th>
+    <td>{{printf "%.1f" .Weather.Temperature}} °C</td>
+  </tr>
+  <tr>
+    <th scope="row">Vind</th>
+    <td>{{printf "%.1f" .Weather.WindSpeed}} km/t</td>
+  </tr>
+  <tr>
+    <th scope="row">Opdateret</th>
+    <td>{{.Updated}}</td>
+  </tr>
+</table>
+<p><small>Data fra <a href="https://open-meteo.com/">Open-Meteo</a></small></p>
+{{end}}
+{{end}}
