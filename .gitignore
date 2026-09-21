@@ -203,3 +203,6 @@ pyrightconfig.json
 .DS_Store
 
 # End of https://www.toptal.com/developers/gitignore/api/python,go
+
+# Runtime data — not part of the repo
+/db/whoknows.db
