@@ -20,3 +20,5 @@ choice to go with a project for our github organization.
 **Branching strategy**: Branches should be kept short lived only fixing one endpoint at a time. For more, see "branching_strategy.md".
 
 **Weather endpoint integration**: We used a free weather API called open-meteo. We've implemented it in the backend as the majority of our buisness logic is there. As of scalabilty and limitations, we've not discussed it yet. 
+
+**Linting**: We have decided to use Golangci-lint as our linter, with a default setup. Currently we have installed it locally, and will discuss the next time we meet how we should use it and implement it
