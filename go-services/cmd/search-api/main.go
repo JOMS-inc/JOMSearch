@@ -24,7 +24,9 @@ func main() {
 
 	api.RegisterRoutes(mux, conn)
 	api.RegisterSearchRoutes(mux, conn)
+	api.SetDB(conn) // required so currentUser() can look users up
 
 	log.Println("listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))
 }
+
