@@ -17,4 +17,6 @@ choice to go with a project for our github organization.
 
 **Reflections on gradual rewriting**: We've decided to make small changes to gradually implement the new endpoints, making sure they're tested and working. When they are working, we comment out the corresponding legacy code.
 
-**Branching strategy**: Branches should be kept short lived only fixing one endpoint at a time. 
+**Branching strategy**: Branches should be kept short lived only fixing one endpoint at a time. For more, see "branching_strategy.md".
+
+**Weather endpoint integration**: We used a free weather API called open-meteo. We've implemented it in the backend as the majority of our buisness logic is there. As of scalabilty and limitations, we've not discussed it yet. 
