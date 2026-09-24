@@ -2,7 +2,7 @@
 set -e
 
 LOCKFILE=/tmp/jomsearch-deploy.lock
-if [ -e "$LOCKFILE" ]; then
+if [[ -e "$LOCKFILE" ]]; then
   echo "Deploy already running, skipping."
   exit 0
 fi

@@ -22,3 +22,5 @@ choice to go with a project for our github organization.
 **Weather endpoint integration**: We used a free weather API called open-meteo. We've implemented it in the backend as the majority of our buisness logic is there. As of scalabilty and limitations, we've not discussed it yet. 
 
 **Linting**: We have decided to use Golangci-lint as our linter, with a default setup. Currently we have installed it locally, and will discuss the next time we meet how we should use it and implement it
+
+24/09/2026: We have decided to use our linter manually for the next couple of weeks, up until we set up a CI pipeline. Afterwards we want to automate the use of the linter in the pipeline
