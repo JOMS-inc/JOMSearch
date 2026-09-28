@@ -1,0 +1,7 @@
+.git
+db
+python-legacy
+go-services/bin
+*.db
+*.sqlite
+*.png
