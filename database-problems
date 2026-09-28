@@ -1,0 +1,15 @@
+The Database Problem
+The goal after next week is to publish the images to a public registry. Because it has to be public, it disallows you to include the SQLite database in the image.
+You must figure out how to securely get the file on the production server and use it without leaking it to the public.
+There are many ways to approach this interesting problem. Discuss it well with your group and consider the pros and cons of each approach.
+
+Approach 1:
+  Copy the db to the VM with scp, bind-mount or volume it.
+  Pros: simple, nothing secret in the image, the file persists across container restarts and image updates, no extra services.
+  Cons: a manual step. Someone has to remember to update the file, and backups are our responsibility.
+
+Approach 2:
+  Docker secrets / Compose
+  Pros: it's the "official" mechanism, with tighter file permissions.
+  Cons: it's designed for small secrets like passwords and keys, not a database file that changes. 
+  Also, secrets fed from a file still need that file to reach the server somehow, so it solves the "how it's mounted" part, not the "how it gets there" part. It's also awkward if the app writes to the DB, since secrets are read-only.
