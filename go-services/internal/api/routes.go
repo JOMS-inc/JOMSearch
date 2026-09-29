@@ -8,11 +8,14 @@ import (
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 	mux.HandleFunc("GET /{$}", Root(db))
 
+	mux.HandleFunc("GET /search", Root(db))
+
 	mux.HandleFunc("GET /register", RegisterHandler)
 	mux.HandleFunc("POST /api/register", RegisterSubmitHandler(db))
 
 	mux.HandleFunc("GET /login", LoginHandler)
 	mux.HandleFunc("POST /login", LoginSubmitHandler(db))
+	mux.HandleFunc("POST /api/login", LoginSubmitHandler(db))
 
 	mux.HandleFunc("GET /logout", LogoutHandler)
 
