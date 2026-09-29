@@ -43,7 +43,7 @@ func RegisterSubmitHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		if err := r.ParseForm(); err != nil {
+		if err := parseInput(r); err != nil {
 			http.Error(w, "bad form", http.StatusBadRequest)
 			return
 		}
