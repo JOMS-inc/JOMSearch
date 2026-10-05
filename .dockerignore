@@ -5,3 +5,5 @@ go-services/bin
 *.db
 *.sqlite
 *.png
+.env
+go-services/tmp

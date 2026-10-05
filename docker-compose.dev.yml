@@ -1,0 +1,22 @@
+# Development setup with hot reloading.
+# Usage: docker compose -f docker-compose.dev.yml up --build
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DB_PATH: /data/whoknows.db
+    volumes:
+      - ./go-services:/app
+      - ./db:/data
+      - go-mod-cache:/go/pkg/mod
+
+volumes:
+  go-mod-cache:

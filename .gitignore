@@ -198,6 +198,7 @@ pyrightconfig.json
 
 # Project build output
 /go-services/bin/
+/go-services/tmp/
 
 # macOS
 .DS_Store
