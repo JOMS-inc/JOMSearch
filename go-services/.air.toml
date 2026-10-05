@@ -1,0 +1,14 @@
+# Air config for hot reloading in development (see Dockerfile.dev).
+
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/server ./cmd/search-api"
+  bin = "./tmp/server"
+  include_ext = ["go", "html"]
+  exclude_dir = ["tmp", "bin"]
+  delay = 500
+
+[misc]
+  clean_on_exit = true

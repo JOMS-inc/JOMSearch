@@ -1,0 +1,17 @@
+# Development image: runs the server with Air, which rebuilds and restarts
+# it whenever a .go or .html file changes. The source code is bind-mounted
+# in by docker-compose.dev.yml, so it is not copied into the image.
+
+FROM golang:1.27
+
+RUN go install github.com/air-verse/air@v1.67.4
+
+WORKDIR /app
+
+COPY go-services/go.mod go-services/go.sum ./
+
+RUN go mod download
+
+EXPOSE 8080
+
+CMD ["air", "-c", ".air.toml"]

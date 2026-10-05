@@ -1,0 +1,16 @@
+# Production setup. The image is built and pushed to GHCR by the CD workflow.
+# The database and .env live on the server only, never in the image.
+# Usage: docker compose -f docker-compose.prod.yml up -d
+
+services:
+  app:
+    image: ghcr.io/joms-inc/jomsearch:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      DB_PATH: /data/whoknows.db
+    volumes:
+      - ./db:/data
