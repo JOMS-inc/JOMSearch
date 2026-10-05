@@ -1,4 +1,5 @@
-//In the following document we are listing some of the problems with legacy 
+# Problems with the legacy code
+
 *SQL Injection*
 User input is concatenated into sql queries. People with ill intentions, could steal values from the db or attack the database in a similar way.
 
