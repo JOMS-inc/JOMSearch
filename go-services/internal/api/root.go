@@ -33,7 +33,7 @@ func Root(db *sql.DB) http.HandlerFunc {
 		var results []SearchResult
 		if q != "" {
 			rows, err := db.Query(
-				"SELECT url, title, description FROM pages WHERE language = ? AND content LIKE ?",
+				"SELECT url, title, substr(content, 1, 200) AS description FROM pages WHERE language = ? AND content LIKE ?",
 				language, "%"+q+"%",
 			)
 			if err != nil {
