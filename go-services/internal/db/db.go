@@ -1,9 +1,9 @@
-package db 
+package db
 
 import (
 	"database/sql"
 
-	_"modernc.org/sqlite"
+	_ "modernc.org/sqlite"
 )
 
 func Open(path string) (*sql.DB, error) {
@@ -15,6 +15,6 @@ func Open(path string) (*sql.DB, error) {
 	if err := conn.Ping(); err != nil {
 		return nil, err
 	}
-	
+
 	return conn, nil
 }
