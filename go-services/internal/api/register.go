@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
 	"strings"
 
@@ -60,7 +61,9 @@ func RegisterSubmitHandler(db *sql.DB) http.HandlerFunc {
 				Email:    email,
 			}
 			w.WriteHeader(status)
-			registerTmpl.ExecuteTemplate(w, "layout.html", data)
+			if err := registerTmpl.ExecuteTemplate(w, "layout.html", data); err != nil {
+				log.Printf("register: render error page: %v", err)
+			}
 		}
 
 		if username == "" || email == "" || password == "" {
