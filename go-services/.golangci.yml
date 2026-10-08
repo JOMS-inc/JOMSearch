@@ -1,0 +1,13 @@
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      # Errors from these are not actionable: closes are deferred cleanup,
+      # and a failed write to the HTTP response means the client is gone.
+      exclude-functions:
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+        - (io.Closer).Close
+        - (net/http.ResponseWriter).Write
+        - (*encoding/json.Encoder).Encode

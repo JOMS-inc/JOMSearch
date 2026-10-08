@@ -88,4 +88,3 @@ func logoutSession(w http.ResponseWriter, r *http.Request) error {
 	sess.Options.MaxAge = -1 // expire the cookie immediately
 	return sess.Save(r, w)
 }
-

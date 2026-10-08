@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"database/sql"
 	"encoding/hex"
+	"log"
 	"net/http"
 	"strings"
 
@@ -54,7 +55,9 @@ func LoginSubmitHandler(db *sql.DB) http.HandlerFunc {
 		renderErr := func(msg string) {
 			data := loginPageData{Error: msg, Username: username}
 			w.WriteHeader(http.StatusUnauthorized)
-			loginTmpl.ExecuteTemplate(w, "layout.html", data)
+			if err := loginTmpl.ExecuteTemplate(w, "layout.html", data); err != nil {
+				log.Printf("login: render error page: %v", err)
+			}
 		}
 
 		if username == "" || password == "" {
@@ -84,7 +87,9 @@ func LoginSubmitHandler(db *sql.DB) http.HandlerFunc {
 		// to bcrypt the first time they successfully log in.
 		if looksLikeMD5(stored) {
 			if newHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost); err == nil {
-				db.Exec(`UPDATE users SET password = ? WHERE id = ?`, string(newHash), id)
+				if _, err := db.Exec(`UPDATE users SET password = ? WHERE id = ?`, string(newHash), id); err != nil {
+					log.Printf("login: upgrade password hash for user %d: %v", id, err)
+				}
 			}
 		}
 
