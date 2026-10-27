@@ -1,16 +1,29 @@
 # Production setup. The image is built and pushed to GHCR by the CD workflow.
 # The database and .env live on the server only, never in the image.
+# nginx terminates TLS for jomsearch.dk; the app is only reachable through it.
 # Usage: docker compose -f docker-compose.prod.yml up -d
 
 services:
   app:
     image: ghcr.io/joms-inc/jomsearch:latest
     restart: unless-stopped
-    ports:
-      - "8080:8080"
     env_file:
       - .env
     environment:
       DB_PATH: /data/whoknows.db
     volumes:
       - ./db:/data
+
+  nginx:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # live/ holds symlinks into archive/, so both must be mounted.
+      - /etc/letsencrypt/live/jomsearch.dk:/etc/letsencrypt/live/jomsearch.dk:ro
+      - /etc/letsencrypt/archive/jomsearch.dk:/etc/letsencrypt/archive/jomsearch.dk:ro
+    depends_on:
+      - app
