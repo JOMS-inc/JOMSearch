@@ -1,6 +1,6 @@
 module github.com/JOMS-inc/JOMSearch/go-services
 
-go 1.27.0
+go 1.27.3
 
 require (
 	github.com/flosch/pongo2/v7 v7.0.0-alpha.1
