@@ -1,12 +1,14 @@
 # Production setup. The image is built and pushed to GHCR by the CD workflow.
 # The database and .env live on the server only, never in the image.
-# nginx terminates TLS for jomsearch.dk; the app is only reachable through it.
+# nginx terminates TLS for jomsearch.dk; the app is also reachable directly on :8080.
 # Usage: docker compose -f docker-compose.prod.yml up -d
 
 services:
   app:
     image: ghcr.io/joms-inc/jomsearch:latest
     restart: unless-stopped
+    ports:
+      - "8080:8080"
     env_file:
       - .env
     environment:
