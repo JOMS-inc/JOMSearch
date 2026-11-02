@@ -3,9 +3,13 @@ package api
 import (
 	"database/sql"
 	"net/http"
+
+	"github.com/JOMS-inc/JOMSearch/go-services/internal/static"
 )
 
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static.FS)))
+
 	mux.HandleFunc("GET /{$}", Root(db))
 
 	mux.HandleFunc("GET /search", Root(db))
@@ -20,6 +24,8 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 	mux.HandleFunc("GET /logout", LogoutHandler)
 
 	mux.HandleFunc("GET /weather", WeatherPage)
+
+	mux.HandleFunc("GET /about", AboutHandler)
 }
 
 // LogoutHandler clears the current session and redirects to /login.

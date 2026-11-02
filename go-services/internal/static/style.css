@@ -1,81 +1,184 @@
 /* Website Defaults */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 body {
-    font-family: 'Trebuchet MS', sans-serif;
-    font-size: 14px;
+  margin: 0;
+  font-family: "Trebuchet MS", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #222;
+  background: #fafafa;
+}
+
+a {
+  color: #1a5fb4;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Sticky footer: the page is at least as tall as the window,
+   and the body grows to fill the space so the footer stays at the bottom. */
+div.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
 div.page div.body {
-    padding: 10px;
+  flex: 1;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
 }
 
 div.page div.footer {
-    background: #eee;
-    color: #888;
-    padding: 5px 10px;
-    font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  background: #eee;
+  color: #888;
+  padding: 10px 20px;
+  font-size: 12px;
+  border-top: 1px solid #ddd;
 }
 
+/* Navigation */
+div.navigation {
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+}
 
+nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+nav h1 {
+  margin: 10px auto 10px 0;
+  font-size: 22px;
+}
+
+nav h1 a {
+  color: #222;
+}
+
+/* Messages */
 ul.flashes {
-    list-style: none;
-    margin: 10px 10px 0 10px;
-    padding: 0;
+  list-style: none;
+  max-width: 800px;
+  margin: 10px auto 0;
+  padding: 0 20px;
 }
 
 ul.flashes li {
-    background: #B9F3ED;
-    border: 1px solid #81CEC6;
-    -moz-border-radius: 2px;
-    -webkit-border-radius: 2px;
-    padding: 4px;
-    font-size: 13px;
+  background: #b9f3ed;
+  border: 1px solid #81cec6;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
 }
 
 div.error {
-    margin: 10px 0;
-    background: #FAE4E4;
-    border: 1px solid #DD6F6F;
-    -moz-border-radius: 2px;
-    -webkit-border-radius: 2px;
-    padding: 4px;
-    font-size: 13px;
+  margin: 10px 0;
+  background: #fae4e4;
+  border: 1px solid #dd6f6f;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
 }
 
-
-/* Custom Styles */
-nav {
-    white-space: nowrap;
-    text-align: center;
+/* Forms */
+input,
+select {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background: #fff;
 }
 
-nav h1, nav a {
-    display: inline-block;
-    margin-right: 20px;
+input:focus,
+select:focus {
+  outline: none;
+  border-color: #1a5fb4;
 }
 
-#nav-login, #nav-register, #nav-logout {
-    float: right;
+button,
+input[type="submit"] {
+  font: inherit;
+  padding: 8px 16px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background-color: #f0f0f0;
+  cursor: pointer;
 }
 
-input {
-    width: 85%;
-    padding: 10px;
-    margin: 10px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
+button:hover,
+input[type="submit"]:hover {
+  background-color: #e6e6e6;
 }
 
-button {
-    width: 10%;
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    background-color: #f0f0f0;
-    cursor: pointer;
-    margin-left: 10px;
+button:active,
+input[type="submit"]:active {
+  background-color: #e0e0e0;
+  box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
 }
 
-button:active {
-    background-color: #e0e0e0;
-    box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
+dl dd {
+  margin: 4px 0 12px;
+}
+
+dl dd input {
+  width: 100%;
+  max-width: 320px;
+}
+
+/* Search */
+#search-input {
+  width: calc(100% - 110px);
+}
+
+#search-button {
+  width: 100px;
+  margin-left: 6px;
+}
+
+#results > div {
+  margin: 20px 0;
+}
+
+#results h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.search-result-description {
+  margin: 0;
+  color: #555;
+}
+
+/* Tables (weather page) */
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 6px 12px 6px 0;
+}
+
+img {
+  max-width: 100%;
 }
