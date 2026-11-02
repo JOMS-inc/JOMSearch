@@ -10,4 +10,6 @@ type User struct {
 	ID       int64
 	Username string
 	Email    string
+	// MustChangePassword is set for users whose password leaked in the breach.
+	MustChangePassword bool
 }

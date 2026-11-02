@@ -23,6 +23,9 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 
 	mux.HandleFunc("GET /logout", LogoutHandler)
 
+	mux.HandleFunc("GET /change-password", ChangePasswordHandler)
+	mux.HandleFunc("POST /change-password", ChangePasswordSubmitHandler(db))
+
 	mux.HandleFunc("GET /weather", WeatherPage)
 
 	mux.HandleFunc("GET /about", AboutHandler)

@@ -68,8 +68,9 @@ func LoginSubmitHandler(db *sql.DB) http.HandlerFunc {
 		var id int64
 		var email string
 		var stored string
-		err := db.QueryRow(`SELECT id, email, password FROM users WHERE username = ?`, username).
-			Scan(&id, &email, &stored)
+		var mustChange bool
+		err := db.QueryRow(`SELECT id, email, password, must_change_password FROM users WHERE username = ?`, username).
+			Scan(&id, &email, &stored, &mustChange)
 		if err == sql.ErrNoRows {
 			renderErr("Invalid username or password.")
 			return
@@ -98,6 +99,10 @@ func LoginSubmitHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
+		if mustChange {
+			http.Redirect(w, r, "/change-password", http.StatusSeeOther)
+			return
+		}
 		http.Redirect(w, r, "/search", http.StatusSeeOther)
 	}
 }

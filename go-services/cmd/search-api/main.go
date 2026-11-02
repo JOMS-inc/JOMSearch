@@ -19,6 +19,10 @@ func main() {
 	}
 	defer conn.Close()
 
+	if err := db.Migrate(conn); err != nil {
+		log.Fatalf("failed to migrate db: %v", err)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
@@ -29,7 +33,7 @@ func main() {
 	api.SetDB(conn) // required so currentUser() can look users up
 
 	log.Println("listening on :" + port)
-	log.Fatal(http.ListenAndServe(":"+port, mux))
+	log.Fatal(http.ListenAndServe(":"+port, api.RequirePasswordChange(mux)))
 }
 
 // getEnv returns the value of the environment variable key, or fallback if it is unset.
