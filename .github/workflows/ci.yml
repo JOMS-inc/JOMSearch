@@ -115,12 +115,13 @@ jobs:
       - name: Install Playwright and Chromium
         working-directory: e2e
         run: |
-          npm ci
-          npx playwright install --with-deps chromium
+          # --ignore-scripts: dependencies may not run install scripts (supply-chain safety).
+          npm ci --ignore-scripts
+          npm run install-browser
 
       - name: Run E2E tests
         working-directory: e2e
-        run: npx playwright test
+        run: npm test
 
       - name: Upload Playwright report
         if: failure()

@@ -5,6 +5,7 @@
   "scripts": {
     "test": "playwright test",
     "test:readonly": "playwright test --grep @readonly",
+    "install-browser": "playwright install --with-deps chromium",
     "report": "playwright show-report"
   },
   "devDependencies": {
