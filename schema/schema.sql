@@ -15,7 +15,37 @@ INSERT INTO users (username, email, password)
 CREATE TABLE IF NOT EXISTS pages (
     title TEXT PRIMARY KEY UNIQUE,
     url TEXT NOT NULL UNIQUE,
-    language TEXT NOT NULL CHECK(language IN ('en', 'da')) DEFAULT 'en', -- How you define ENUM type in SQLite
+    language TEXT NOT NULL CHECK(language IN ('en', 'da')) DEFAULT 'en',
     last_updated TIMESTAMP,
     content TEXT NOT NULL
 );
+
+-- Full-text search index (external content: data lives in pages, index in pages_fts)
+CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(
+    title,
+    content,
+    content='pages',
+    content_rowid='rowid',
+    tokenize='unicode61 remove_diacritics 2'
+);
+
+-- Keep the index in sync with pages
+CREATE TRIGGER IF NOT EXISTS pages_ai AFTER INSERT ON pages BEGIN
+    INSERT INTO pages_fts(rowid, title, content)
+    VALUES (new.rowid, new.title, new.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS pages_ad AFTER DELETE ON pages BEGIN
+    INSERT INTO pages_fts(pages_fts, rowid, title, content)
+    VALUES ('delete', old.rowid, old.title, old.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS pages_au AFTER UPDATE ON pages BEGIN
+    INSERT INTO pages_fts(pages_fts, rowid, title, content)
+    VALUES ('delete', old.rowid, old.title, old.content);
+    INSERT INTO pages_fts(rowid, title, content)
+    VALUES (new.rowid, new.title, new.content);
+END;
+
+-- Populate the index from existing rows (safe to run on an empty table too)
+INSERT INTO pages_fts(pages_fts) VALUES ('rebuild');
