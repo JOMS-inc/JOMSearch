@@ -1,5 +1,6 @@
 # Continuous delivery: on every push to main, build the production image,
-# push it to GitHub Container Registry and redeploy it on the server.
+# push it to GitHub Container Registry and redeploy it on the server,
+# then smoke test the live site to confirm the deploy actually came up.
 #
 # Required repository secrets:
 #   SSH_HOST - IP or hostname of the server
@@ -67,3 +68,44 @@ jobs:
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d
             docker image prune -f
+
+  # Smoke test: a quick sanity check that the live site responds after deploy.
+  # Goes through https://jomsearch.dk so it covers DNS, TLS, nginx, the app and the DB.
+  smoke-test:
+    needs: deploy
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: https://jomsearch.dk
+    steps:
+      - name: Smoke test with cURL
+        run: |
+          # `docker compose up -d` returns before the app is listening, so wait for /health first.
+          for i in $(seq 1 12); do
+            body=$(curl -s --max-time 10 "$BASE_URL/health" || true)
+            if [ "$body" = "ok" ]; then
+              echo "/health is up (attempt $i)"
+              break
+            fi
+            if [ "$i" -eq 12 ]; then
+              echo "/health did not return 'ok' within 60s (last body: '$body')"
+              exit 1
+            fi
+            sleep 5
+          done
+
+          failed=0
+          for path in "/" "/about" "/static/style.css" "/api/search?q=test"; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$BASE_URL$path")
+            if [ "$status" = "200" ]; then
+              echo "OK   $status $path"
+            else
+              echo "FAIL $status $path"
+              failed=1
+            fi
+          done
+
+          if [ "$failed" -ne 0 ]; then
+            echo "Smoke test failed."
+            exit 1
+          fi
+          echo "Smoke test passed."
