@@ -1,6 +1,7 @@
 # Continuous delivery: on every push to main, build the production image,
 # push it to GitHub Container Registry and redeploy it on the server,
-# then smoke test the live site to confirm the deploy actually came up.
+# then smoke test the live site to confirm the deploy actually came up and
+# run the read-only Playwright E2E tests against it.
 #
 # Required repository secrets:
 #   SSH_HOST - IP or hostname of the server
@@ -109,3 +110,37 @@ jobs:
             exit 1
           fi
           echo "Smoke test passed."
+
+  # Read-only E2E tests (tagged @readonly) against the live site. Tests that
+  # create users only run in CI, so production doesn't fill up with test data.
+  e2e-prod:
+    needs: smoke-test
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: https://jomsearch.dk
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install Playwright and Chromium
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run read-only E2E tests against production
+        working-directory: e2e
+        run: npx playwright test --grep @readonly
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-prod
+          path: e2e/playwright-report/
+          retention-days: 7

@@ -81,6 +81,7 @@ func NewWeatherPageData(ctx context.Context, cityName string) WeatherPageData {
 
 func WeatherPage(w http.ResponseWriter, r *http.Request) {
 	data := NewWeatherPageData(r.Context(), r.URL.Query().Get("city"))
+	data.User = currentUser(r)
 
 	if err := templates.Page("weather.html").ExecuteTemplate(w, "layout.html", data); err != nil {
 		http.Error(w, "render error", http.StatusInternalServerError)

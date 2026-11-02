@@ -10,7 +10,8 @@ import (
 	"time"
 )
 
-const openMeteoURL = "https://api.open-meteo.com/v1/forecast"
+// openMeteoURL is a var (not a const) so tests can point it at a fake server.
+var openMeteoURL = "https://api.open-meteo.com/v1/forecast"
 
 // Default location: Copenhagen
 const (

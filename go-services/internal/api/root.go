@@ -56,7 +56,11 @@ func Root(db *sql.DB) http.HandlerFunc {
 			}
 		}
 
-		data := SearchPageData{Query: q, SearchResults: results}
+		data := SearchPageData{
+			BaseData:      templates.BaseData{User: currentUser(r)},
+			Query:         q,
+			SearchResults: results,
+		}
 		if err := searchTmpl.ExecuteTemplate(w, "layout.html", data); err != nil {
 			http.Error(w, "template error", http.StatusInternalServerError)
 		}
