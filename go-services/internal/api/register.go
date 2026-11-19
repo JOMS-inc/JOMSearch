@@ -2,10 +2,12 @@ package api
 
 import (
 	"database/sql"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/templates"
@@ -82,12 +84,13 @@ func RegisterSubmitHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		_, err = db.Exec(
-			`INSERT INTO users (username, email, password) VALUES (?, ?, ?)`,
+			`INSERT INTO users (username, email, password) VALUES ($1, $2, $3)`,
 			username, email, string(hash),
 		)
 		if err != nil {
-			// Adjust this check to match your driver's actual unique-constraint error.
-			if strings.Contains(strings.ToUpper(err.Error()), "UNIQUE") {
+			// 23505 is Postgres' error code for a UNIQUE constraint violation.
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 				renderErr("Username or email already taken.", http.StatusConflict)
 				return
 			}

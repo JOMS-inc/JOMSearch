@@ -27,7 +27,9 @@ docker compose -f docker-compose.prod.yml up -d
 | Variable         | Default             | Description                          |
 |------------------|---------------------|--------------------------------------|
 | `SESSION_SECRET` | insecure dev key    | Key used to sign session cookies     |
-| `DB_PATH`        | `../db/whoknows.db` | Path to the SQLite database          |
+| `DATABASE_URL`   | local dev Postgres  | PostgreSQL connection URL (prod: Neon, see [database.md](database.md)) |
+| `SEARCH_LOG`     | `../logs/searches.log` | Where searches are logged (read by the crawler) |
+| `CRAWLER_CONTACT`| none                | Contact sent in the crawler's User-Agent |
 | `PORT`           | `8080`              | Port the server listens on           |
 
 ## Testing
@@ -35,14 +37,16 @@ docker compose -f docker-compose.prod.yml up -d
 See [testing.md](testing.md) for which kinds of tests we have and why.
 
 ```sh
-# Unit, integration and mock tests (Go)
-cd go-services && go test -race -cover ./...
+# Unit, integration and mock tests (Go). Database tests need a Postgres,
+# e.g. the dev one: docker compose -f docker-compose.dev.yml up -d db
+cd go-services && TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' go test -race -cover ./...
 
 # Fuzz the input parser for 30 seconds
 cd go-services && go test -run '^$' -fuzz=FuzzParseInput -fuzztime=30s ./internal/api
 
 # End-to-end tests (Playwright): start the app on a seeded test DB first
-cd go-services && go run ./cmd/testdb /tmp/e2e.db && DB_PATH=/tmp/e2e.db go run ./cmd/search-api
+export DATABASE_URL='postgres://postgres:postgres@localhost:5432/e2e?sslmode=disable'  # an empty database
+cd go-services && go run ./cmd/testdb "$DATABASE_URL" && go run ./cmd/search-api
 cd e2e && npm ci && npx playwright install chromium && npx playwright test
 
 # Only the read-only E2E tests, against production

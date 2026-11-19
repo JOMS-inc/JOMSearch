@@ -51,3 +51,12 @@ END;
 
 -- Populate the index from existing rows (safe to run on an empty table too)
 INSERT INTO pages_fts(pages_fts) VALUES ('rebuild');
+
+-- Searches the crawler already handled (see cmd/crawler)
+CREATE TABLE IF NOT EXISTS crawled_terms (
+    query TEXT NOT NULL,
+    language TEXT NOT NULL,
+    crawled_at TIMESTAMP NOT NULL,
+    pages_added INTEGER NOT NULL,
+    PRIMARY KEY (query, language)
+);

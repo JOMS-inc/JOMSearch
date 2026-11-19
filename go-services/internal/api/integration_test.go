@@ -1,21 +1,26 @@
 package api
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/JOMS-inc/JOMSearch/go-services/internal/searchlog"
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/testdb"
 )
 
 // Integration tests: the real router, handlers, templates, sessions and a real
-// (temporary, seeded) SQLite database, exercised over HTTP like a browser would.
+// (temporary, seeded) PostgreSQL schema, exercised over HTTP like a browser would.
 //
 // These tests don't use t.Parallel() because the session store and dbConn
 // (see auth.go) are package-level globals shared by all handlers.
@@ -118,6 +123,11 @@ func TestSearchAPI(t *testing.T) {
 		{"danish with language=da", "q=hovedstad&language=da", []string{"København"}},
 		{"no match", "q=zzzznotfound", nil},
 		{"empty query returns nothing", "q=", nil},
+		{"prefix match", "q=prog", []string{"Go (programming language)", "SQLite"}},
+		{"matches title", "q=Go", []string{"Go (programming language)"}},
+		{"case ignored", "q=K%C3%98BENHAVN&language=da", []string{"København"}},
+		{"FTS syntax is treated as text", `q=%22NOT*%28`, nil},
+		{"only whitespace", "q=%20%20", nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -268,7 +278,7 @@ func TestLoginErrors(t *testing.T) {
 func TestLegacyMD5LoginUpgradesHash(t *testing.T) {
 	app := newTestApp(t)
 
-	// The seeded admin user (schema/schema.sql) has an MD5 hash of "password".
+	// The seeded admin user (internal/testdb) has an MD5 hash of "password".
 	status, body := app.postForm(t, "/login", url.Values{"username": {"admin"}, "password": {"password"}})
 	if status != http.StatusOK || !strings.Contains(body, "Log out [admin]") {
 		t.Fatalf("legacy login failed: status %d", status)
@@ -280,5 +290,66 @@ func TestLegacyMD5LoginUpgradesHash(t *testing.T) {
 	}
 	if !strings.HasPrefix(stored, "$2") {
 		t.Errorf("admin hash was not upgraded to bcrypt, got %q", stored)
+	}
+}
+
+// TestSearchUsesFullTextIndex makes sure the search can use the GIN index
+// on pages.search instead of reading every page.
+//
+// With only a few test rows Postgres would rightly prefer reading the whole
+// table (it is faster than using an index for 3 rows), so sequential scans
+// are switched off for this one connection to see whether the index fits.
+func TestSearchUsesFullTextIndex(t *testing.T) {
+	conn := testdb.New(t)
+	ctx := context.Background()
+	c, err := conn.Conn(ctx) // one connection, so SET applies to the EXPLAIN
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close() //nolint:errcheck // returns the connection to the pool
+
+	if _, err := c.ExecContext(ctx, `SET enable_seqscan = off`); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := c.QueryContext(ctx, `EXPLAIN
+		SELECT url FROM pages, to_tsquery('english', 'go:*') AS q
+		WHERE language = 'en' AND search @@ q`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+
+	var plan []string
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			t.Fatal(err)
+		}
+		plan = append(plan, line)
+	}
+	got := strings.Join(plan, "\n")
+	if !strings.Contains(got, "pages_search_idx") {
+		t.Errorf("search does not use the GIN index, plan:\n%s", got)
+	}
+}
+
+// TestSearchIsLogged checks that a search writes one line to the search log,
+// with the result count the crawler uses to find missing content.
+func TestSearchIsLogged(t *testing.T) {
+	app := newTestApp(t)
+	var buf bytes.Buffer
+	SetSearchLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { SetSearchLogger(slog.New(slog.DiscardHandler)) })
+
+	app.get(t, "/api/search?q=zzzznotfound")
+	app.get(t, "/api/search?q=") // empty searches are not logged
+
+	terms, err := searchlog.Rank(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []searchlog.Term{{Query: "zzzznotfound", Language: "en", Searches: 1, Results: 0}}
+	if !reflect.DeepEqual(terms, want) {
+		t.Errorf("logged %+v, want %+v", terms, want)
 	}
 }

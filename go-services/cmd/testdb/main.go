@@ -1,33 +1,35 @@
-// Command testdb writes a fresh, seeded SQLite database for the E2E tests.
+// Command testdb seeds an empty PostgreSQL database for the E2E tests.
 //
-// Usage: go run ./cmd/testdb /tmp/e2e.db
+// Usage: go run ./cmd/testdb postgres://postgres:postgres@localhost:5432/jomsearch_test?sslmode=disable
+//
+// The database must be empty (a fresh one, as in CI): it is migrated and
+// then filled with the same pages and users the Go tests use.
 package main
 
 import (
 	"fmt"
 	"os"
 
+	"github.com/JOMS-inc/JOMSearch/go-services/internal/db"
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/testdb"
 )
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: testdb <path-to-new.db>")
+		fmt.Fprintln(os.Stderr, "usage: testdb <postgres-url-of-an-empty-database>")
 		os.Exit(2)
 	}
-	path := os.Args[1]
 
-	// Start from an empty file so reruns don't hit duplicate pages.
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	conn, err := testdb.Create(path)
+	conn, err := db.Open(os.Args[1])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	conn.Close()
-	fmt.Println("seeded test database at", path)
+	defer conn.Close()
+
+	if err := testdb.Seed(conn); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Println("seeded test database")
 }

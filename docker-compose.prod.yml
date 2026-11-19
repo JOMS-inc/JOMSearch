@@ -1,7 +1,12 @@
 # Production setup. The image is built and pushed to GHCR by the CD workflow.
-# The database and .env live on the server only, never in the image.
+# The database is managed PostgreSQL on Neon; its URL is DATABASE_URL in
+# .env, which lives on the server only, never in the image.
 # nginx terminates TLS for jomsearch.dk; the app is also reachable directly on :8080.
 # Usage: docker compose -f docker-compose.prod.yml up -d
+#
+# The crawler is a one-shot job, not started by `up` (it is in a profile).
+# Run it from cron on the server, e.g. every night at 03:00:
+#   0 3 * * * cd ~/JOMSearch && docker compose -f docker-compose.prod.yml run --rm crawler
 
 services:
   app:
@@ -12,9 +17,21 @@ services:
     env_file:
       - .env
     environment:
-      DB_PATH: /data/whoknows.db
+      SEARCH_LOG: /logs/searches.log
     volumes:
-      - ./db:/data
+      - ./logs:/logs
+
+  # Reads the search log and adds Wikipedia pages for what users search for.
+  crawler:
+    image: ghcr.io/joms-inc/jomsearch:latest
+    profiles: ["crawler"]
+    command: ["./crawler"]
+    env_file:
+      - .env
+    environment:
+      SEARCH_LOG: /logs/searches.log
+    volumes:
+      - ./logs:/logs:ro
 
   nginx:
     image: nginx:1.29-alpine

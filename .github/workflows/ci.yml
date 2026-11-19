@@ -15,6 +15,20 @@ on:
 jobs:
   go:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
     defaults:
       run:
         working-directory: go-services
@@ -85,6 +99,20 @@ jobs:
   # test database, then drive it with Playwright in a headless Chromium.
   e2e:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -102,10 +130,10 @@ jobs:
       - name: Start the app on a seeded test database
         working-directory: go-services
         run: |
-          go run ./cmd/testdb "$RUNNER_TEMP/e2e.db"
+          go run ./cmd/testdb "$DATABASE_URL"
           go build -o "$RUNNER_TEMP/server" ./cmd/search-api
           # Background process: it keeps running for the rest of the job.
-          DB_PATH="$RUNNER_TEMP/e2e.db" nohup "$RUNNER_TEMP/server" > "$RUNNER_TEMP/server.log" 2>&1 &
+          nohup "$RUNNER_TEMP/server" > "$RUNNER_TEMP/server.log" 2>&1 &
           for i in $(seq 1 30); do
             curl -sf http://localhost:8080/health && exit 0
             sleep 1
