@@ -118,6 +118,11 @@ func TestSearchAPI(t *testing.T) {
 		{"danish with language=da", "q=hovedstad&language=da", []string{"København"}},
 		{"no match", "q=zzzznotfound", nil},
 		{"empty query returns nothing", "q=", nil},
+		{"prefix match", "q=prog", []string{"Go (programming language)", "SQLite"}},
+		{"matches title", "q=Go", []string{"Go (programming language)"}},
+		{"case ignored", "q=K%C3%98BENHAVN&language=da", []string{"København"}},
+		{"FTS syntax is treated as text", `q=%22NOT*%28`, nil},
+		{"only whitespace", "q=%20%20", nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -280,5 +285,35 @@ func TestLegacyMD5LoginUpgradesHash(t *testing.T) {
 	}
 	if !strings.HasPrefix(stored, "$2") {
 		t.Errorf("admin hash was not upgraded to bcrypt, got %q", stored)
+	}
+}
+
+// TestSearchUsesFullTextIndex makes sure the search query goes through the
+// pages_fts index instead of scanning every row of pages.
+func TestSearchUsesFullTextIndex(t *testing.T) {
+	conn := testdb.New(t)
+	rows, err := conn.Query(`EXPLAIN QUERY PLAN
+		SELECT p.url FROM pages_fts JOIN pages p ON p.rowid = pages_fts.rowid
+		WHERE pages_fts MATCH 'go' AND p.language = 'en'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+
+	var plan []string
+	for rows.Next() {
+		var id, parent, notused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &notused, &detail); err != nil {
+			t.Fatal(err)
+		}
+		plan = append(plan, detail)
+	}
+	got := strings.Join(plan, "\n")
+	// Expected: look words up in the FTS index, then fetch each matching
+	// page by rowid. A full scan of pages would show up as "SCAN p".
+	if !strings.Contains(got, "SCAN pages_fts VIRTUAL TABLE INDEX") ||
+		!strings.Contains(got, "SEARCH p USING INTEGER PRIMARY KEY") {
+		t.Errorf("search does not use the full-text index, plan:\n%s", got)
 	}
 }
