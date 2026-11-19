@@ -88,46 +88,44 @@ How it works here:
 
 Data from SQLite is moved by `cmd/sqlite2pg`, described next.
 
-## Moving production from SQLite to Neon (runbook)
+## Moving production from SQLite to Neon (done 2026-11-19)
 
-`sqlite2pg` copies users, pages and crawled terms in one transaction. It keeps user ids, so existing session cookies keep working, and it can safely run more than once. Running it twice is what keeps downtime short.
+`sqlite2pg` copies users, pages and crawled terms in one transaction. It keeps user ids, so existing session cookies keep working, and it can safely run more than once (existing rows are updated, not duplicated). That is what made a short switch possible: copy everything while the old app keeps serving, then copy once more right before the new version goes live.
 
-On the server (`~/JOMSearch`):
+What we did:
+
+1. **Neon project:** in `eu-central-1`, Frankfurt. Its direct connection string went into `.env` on the server and on a laptop. The old app ignores `DATABASE_URL`, so adding it early was safe.
+2. **Test run:** migrations, copy and searches against Neon from the laptop. Afterwards the test rows were removed (`TRUNCATE users, pages, crawled_terms RESTART IDENTITY`).
+3. **First real copy:** from a copy of the production file, run from the laptop:
+   ```sh
+   scp guts:JOMSearch/db/whoknows.db ~/whoknows-prod.db
+   cd go-services && set -a && . ../.env && set +a
+   go run ./cmd/sqlite2pg -sqlite ~/whoknows-prod.db -pg "$DATABASE_URL"
+   ```
+   It copied 2,379 users and 51 pages in 54 s. Each row is one round trip to Frankfurt; the same copy into a local Postgres took 0.3 s. Counts, the highest user id and the number of flagged users were compared between SQLite and Neon.
+4. **Final copy:** the same command again with a fresh copy of the file, once CI was green.
+5. **Switch:** merged the PR right after the final copy. CD deployed the new image, which reads `DATABASE_URL`. We checked the live site: search for "programs" finds "program" (stemming, so it really is Postgres), and the SQLite file was no longer modified.
+
+Downtime was only the container restart during the deploy, a few seconds. A user who registered between the final copy and the deploy (a few minutes) would have been lost. We watched the user count beforehand and nobody registered in that time.
+
+**Don't run `sqlite2pg` again now that production writes to Postgres.** It would overwrite newer rows, such as changed passwords, with the old values from SQLite.
+
+For reference, to run `sqlite2pg` on the server instead of a laptop, go through compose so `.env` is read correctly:
 
 ```sh
-# 0. Backup of the old database (keep it until we are sure)
-cp db/whoknows.db db/whoknows.db.bak-$(date +%F)
-
-# 1. Pause the crawler: comment out its cron line (crontab -e)
-
-# 2. First copy, while the old app keeps serving users
-docker run --rm -v ./db:/data --env-file .env ghcr.io/joms-inc/jomsearch:<new-tag> \
+docker compose -f docker-compose.prod.yml run --rm -v ./db:/data app \
   sh -c './sqlite2pg -sqlite /data/whoknows.db -pg "$DATABASE_URL"'
-
-# 3. Check: counts must match
-sqlite3 db/whoknows.db 'select count(*) from users; select count(*) from pages;'
-psql "$DATABASE_URL" -c 'select count(*) from users' -c 'select count(*) from pages'
-
-# 4. Second copy, then switch. Only users can change in between
-#    (registrations, password changes), and they are few rows, so this
-#    copy takes well under a second.
-docker run --rm -v ./db:/data --env-file .env ghcr.io/joms-inc/jomsearch:<new-tag> \
-  sh -c './sqlite2pg -sqlite /data/whoknows.db -pg "$DATABASE_URL"' \
-  && docker compose -f docker-compose.prod.yml up -d   # new image, now on Postgres
-
-# 5. Smoke test, then re-enable the crawler
-curl -s 'https://jomsearch.dk/api/search?q=python' | head -c 200
 ```
 
-Downtime is only the container restart in step 4, a few seconds. A user who registers between the second copy and the restart would be lost. Writes can't be frozen without a maintenance page, so we accept that tiny window.
+Don't use `docker run --env-file .env`: unlike compose, it keeps the quotes around `DATABASE_URL` as part of the value.
 
-**Rollback:** the SQLite file is never written to (`mode=ro`). To go back, deploy the previous image tag, which still reads `db/whoknows.db`.
+**Rollback:** `sqlite2pg` only reads the SQLite file (`mode=ro`), and it is still on the server at `db/whoknows.db`. To go back, revert the merge commit on `main`. CD then redeploys the SQLite version, including the old compose file with the `./db` mount. Users who registered or changed their password on Postgres after the switch would have to be copied back by hand. Once we trust the new setup, the SQLite file can be deleted.
 
 ## Backups
 
 - **Neon:** keeps point-in-time history, which lets you restore to an earlier moment. The free tier keeps only a short window, so check the current limit in the Neon console.
-- **Our own copy:** a nightly logical dump on the VM, so we also have a copy outside Neon.
+- **Our own copy:** a nightly logical dump on the VM, so we also have a copy outside Neon. In `adminuser`'s crontab (`crontab -e`):
   ```sh
-  0 4 * * * cd ~/JOMSearch && docker run --rm --env-file .env postgres:18-alpine \
-    sh -c 'pg_dump "$DATABASE_URL"' | gzip > backups/jomsearch-$(date +\%F).sql.gz
+  0 4 * * * cd $HOME/JOMSearch && umask 077 && set -a && . ./.env && set +a && docker run --rm -e DATABASE_URL postgres:18-alpine sh -c 'pg_dump "$DATABASE_URL"' | gzip > backups/jomsearch-$(date +\%F).sql.gz
   ```
+  `umask 077` makes the dump readable only by `adminuser`, because it contains the password hashes. `. ./.env` loads the file the way bash does, so the quotes are stripped. `-e DATABASE_URL` passes the value into the container without it showing up in the host's process list. The `postgres` image's `pg_dump` must be at least the server's version (Neon runs 18).
