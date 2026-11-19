@@ -196,6 +196,11 @@ poetry.toml
 # LSP config files
 pyrightconfig.json
 
+# Search logs and SQLite WAL files (see db.Open)
+/logs/
+*.db-wal
+*.db-shm
+
 # Project build output
 /go-services/bin/
 /go-services/tmp/

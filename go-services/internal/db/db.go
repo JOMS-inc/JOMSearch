@@ -6,8 +6,17 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// Open opens the SQLite file at path.
+//
+// Two settings make it safe for the web app and the crawler to use the same
+// file at the same time:
+//   - WAL (write-ahead log): readers keep reading while a writer writes,
+//     instead of being blocked by it.
+//   - busy_timeout: a second writer waits up to 5s for the lock instead of
+//     failing at once with "database is locked".
 func Open(path string) (*sql.DB, error) {
-	conn, err := sql.Open("sqlite", path)
+	dsn := path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
+	conn, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -26,8 +35,24 @@ func Migrate(conn *sql.DB) error {
 	if err := migrateMustChangePassword(conn); err != nil {
 		return err
 	}
-	return migrateFullTextIndex(conn)
+	if err := migrateFullTextIndex(conn); err != nil {
+		return err
+	}
+	_, err := conn.Exec(crawledTermsSchema)
+	return err
 }
+
+// crawledTermsSchema remembers which searches the crawler already handled,
+// so a new run skips them (until they are older than its refresh window)
+// and an interrupted run can simply be started again.
+const crawledTermsSchema = `
+CREATE TABLE IF NOT EXISTS crawled_terms (
+    query TEXT NOT NULL,
+    language TEXT NOT NULL,
+    crawled_at TIMESTAMP NOT NULL,
+    pages_added INTEGER NOT NULL,
+    PRIMARY KEY (query, language)
+);`
 
 func migrateMustChangePassword(conn *sql.DB) error {
 	has, err := hasColumn(conn, "users", "must_change_password")

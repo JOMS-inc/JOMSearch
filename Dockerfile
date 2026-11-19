@@ -11,13 +11,14 @@ RUN go mod download
 COPY go-services/ .
 
 # modernc.org/sqlite is pure Go, so we can build a static binary without CGO.
-RUN CGO_ENABLED=0 go build -o server ./cmd/search-api
+RUN CGO_ENABLED=0 go build -o server ./cmd/search-api && \
+    CGO_ENABLED=0 go build -o crawler ./cmd/crawler
 
 FROM alpine:3.22
 
 WORKDIR /app
 
-COPY --from=build /app/server .
+COPY --from=build /app/server /app/crawler ./
 
 EXPOSE 8080
 

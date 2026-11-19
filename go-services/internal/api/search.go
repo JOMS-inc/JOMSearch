@@ -3,9 +3,19 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/JOMS-inc/JOMSearch/go-services/internal/searchlog"
 )
+
+// searchLogger records every search. It discards by default (tests), and
+// main sets a real one with SetSearchLogger.
+var searchLogger = slog.New(slog.DiscardHandler)
+
+// SetSearchLogger sets where searches are logged.
+func SetSearchLogger(l *slog.Logger) { searchLogger = l }
 
 type SearchResponse struct {
 	SearchResults []SearchResult `json:"search_results"`
@@ -72,7 +82,14 @@ func searchPages(db *sql.DB, q, language string) ([]SearchResult, error) {
 		}
 		results = append(results, res)
 	}
-	return results, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Log after the query so the line includes how many results it found.
+	// Searches with 0 results show what content is missing.
+	searchlog.Log(searchLogger, q, language, len(results))
+	return results, nil
 }
 
 // ftsQuery turns user input into a safe FTS5 query.

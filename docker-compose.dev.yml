@@ -13,9 +13,11 @@ services:
         required: false
     environment:
       DB_PATH: /data/whoknows.db
+      SEARCH_LOG: /logs/searches.log
     volumes:
       - ./go-services:/app
       - ./db:/data
+      - ./logs:/logs
       - go-mod-cache:/go/pkg/mod
 
 volumes:

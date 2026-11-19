@@ -1,16 +1,20 @@
 package api
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/JOMS-inc/JOMSearch/go-services/internal/searchlog"
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/testdb"
 )
 
@@ -315,5 +319,26 @@ func TestSearchUsesFullTextIndex(t *testing.T) {
 	if !strings.Contains(got, "SCAN pages_fts VIRTUAL TABLE INDEX") ||
 		!strings.Contains(got, "SEARCH p USING INTEGER PRIMARY KEY") {
 		t.Errorf("search does not use the full-text index, plan:\n%s", got)
+	}
+}
+
+// TestSearchIsLogged checks that a search writes one line to the search log,
+// with the result count the crawler uses to find missing content.
+func TestSearchIsLogged(t *testing.T) {
+	app := newTestApp(t)
+	var buf bytes.Buffer
+	SetSearchLogger(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { SetSearchLogger(slog.New(slog.DiscardHandler)) })
+
+	app.get(t, "/api/search?q=zzzznotfound")
+	app.get(t, "/api/search?q=") // empty searches are not logged
+
+	terms, err := searchlog.Rank(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []searchlog.Term{{Query: "zzzznotfound", Language: "en", Searches: 1, Results: 0}}
+	if !reflect.DeepEqual(terms, want) {
+		t.Errorf("logged %+v, want %+v", terms, want)
 	}
 }
