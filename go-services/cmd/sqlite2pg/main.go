@@ -83,14 +83,15 @@ func copyAll(src, dst *sql.DB) ([3]int, error) {
 func copyUsers(src *sql.DB, tx *sql.Tx) (int, error) {
 	// Databases from before the breach fix lack must_change_password; the old
 	// app's migration flagged every existing user, so do the same here.
-	mustChange := "1"
+	// Two fixed queries rather than splicing the column name into one.
+	query := `SELECT id, username, email, password, 1 FROM users ORDER BY id`
 	if has, err := hasColumn(src, "users", "must_change_password"); err != nil {
 		return 0, err
 	} else if has {
-		mustChange = "must_change_password"
+		query = `SELECT id, username, email, password, must_change_password FROM users ORDER BY id`
 	}
 
-	rows, err := src.Query(`SELECT id, username, email, password, ` + mustChange + ` FROM users ORDER BY id`)
+	rows, err := src.Query(query)
 	if err != nil {
 		return 0, err
 	}

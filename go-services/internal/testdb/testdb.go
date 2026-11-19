@@ -92,12 +92,15 @@ func New(t testing.TB) *sql.DB {
 	}
 	t.Cleanup(func() { admin.Close() })
 
+	// Postgres cannot take a schema name as a query parameter, so it is put
+	// into the SQL text. That is safe here: the name is "test_" plus random
+	// hex digits from randomHex, never input from outside.
 	schema := "test_" + randomHex(8)
-	if _, err := admin.Exec(`CREATE SCHEMA ` + schema); err != nil {
+	if _, err := admin.Exec(`CREATE SCHEMA ` + schema); err != nil { // NOSONAR: schema is generated hex, see comment above
 		t.Fatalf("testdb: create schema: %v", err)
 	}
 	t.Cleanup(func() {
-		if _, err := admin.Exec(`DROP SCHEMA ` + schema + ` CASCADE`); err != nil {
+		if _, err := admin.Exec(`DROP SCHEMA ` + schema + ` CASCADE`); err != nil { // NOSONAR: schema is generated hex
 			t.Errorf("testdb: drop schema: %v", err)
 		}
 	})

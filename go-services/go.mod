@@ -1,6 +1,6 @@
 module github.com/JOMS-inc/JOMSearch/go-services
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/gorilla/sessions v1.4.0
