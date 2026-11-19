@@ -69,7 +69,7 @@ func TestRunStoresSearchablePages(t *testing.T) {
 
 	// The new pages are in the full-text index, so search finds them.
 	var n int
-	if err := c.DB.QueryRow(`SELECT count(*) FROM pages_fts WHERE pages_fts MATCH 'kubernetes'`).Scan(&n); err != nil {
+	if err := c.DB.QueryRow(`SELECT count(*) FROM pages WHERE search @@ to_tsquery('english', 'kubernetes')`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	if n != 2 {

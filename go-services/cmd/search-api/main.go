@@ -11,11 +11,11 @@ import (
 )
 
 func main() {
-	dbPath := getEnv("DB_PATH", "../db/whoknows.db")
+	dbURL := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/jomsearch?sslmode=disable")
 	port := getEnv("PORT", "8080")
 	searchLogPath := getEnv("SEARCH_LOG", "../logs/searches.log")
 
-	conn, err := db.Open(dbPath)
+	conn, err := db.Open(dbURL)
 	if err != nil {
 		log.Fatalf("failed to open db: %v", err)
 	}

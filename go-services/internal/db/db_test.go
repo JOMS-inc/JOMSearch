@@ -1,70 +1,53 @@
-package db
+package db_test
 
 import (
-	"path/filepath"
 	"testing"
+
+	"github.com/JOMS-inc/JOMSearch/go-services/internal/db"
+	"github.com/JOMS-inc/JOMSearch/go-services/internal/testdb"
 )
 
-// TestMigrateAddsFullTextIndex starts from the old schema (no pages_fts,
-// no must_change_password) like the prod DB, and checks that Migrate adds
-// the index, fills it with existing pages, and keeps it in sync afterwards.
-func TestMigrateAddsFullTextIndex(t *testing.T) {
-	conn, err := Open(filepath.Join(t.TempDir(), "old.db"))
-	if err != nil {
-		t.Fatal(err)
+// TestMigrateIsIdempotent: the app and the crawler both migrate on every
+// start, so running Migrate on an up-to-date database must do nothing.
+func TestMigrateIsIdempotent(t *testing.T) {
+	conn := testdb.New(t) // already migrated once
+	if err := db.Migrate(conn); err != nil {
+		t.Fatalf("second Migrate: %v", err)
 	}
-	defer conn.Close()
+}
 
-	_, err = conn.Exec(`
-		CREATE TABLE users (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			username TEXT NOT NULL UNIQUE,
-			email TEXT NOT NULL UNIQUE,
-			password TEXT NOT NULL
-		);
-		CREATE TABLE pages (
-			title TEXT PRIMARY KEY UNIQUE,
-			url TEXT NOT NULL UNIQUE,
-			language TEXT NOT NULL DEFAULT 'en',
-			last_updated TIMESTAMP,
-			content TEXT NOT NULL
-		);
-		INSERT INTO pages (title, url, content) VALUES ('Old page', 'https://a', 'existing content');`)
-	if err != nil {
-		t.Fatal(err)
-	}
+// TestSearchColumnFollowsLanguage checks the generated search column: it is
+// filled on INSERT and UPDATE without any trigger, and stems each page in
+// its own language.
+func TestSearchColumnFollowsLanguage(t *testing.T) {
+	conn := testdb.New(t)
 
-	// Run twice: the second run must be a no-op.
-	for i := 0; i < 2; i++ {
-		if err := Migrate(conn); err != nil {
-			t.Fatalf("Migrate run %d: %v", i+1, err)
-		}
-	}
-
-	count := func(match string) int {
+	matches := func(cfg, word string) int {
 		t.Helper()
 		var n int
-		if err := conn.QueryRow(`SELECT count(*) FROM pages_fts WHERE pages_fts MATCH ?`, match).Scan(&n); err != nil {
+		err := conn.QueryRow(
+			`SELECT count(*) FROM pages WHERE search @@ to_tsquery($1::regconfig, $2)`, cfg, word,
+		).Scan(&n)
+		if err != nil {
 			t.Fatal(err)
 		}
 		return n
 	}
 
-	if got := count("existing"); got != 1 {
-		t.Errorf("page from before the migration: got %d matches, want 1", got)
+	// English stemming: "languages" and "language" share the stem "languag".
+	if got := matches("english", "languages"); got != 2 {
+		t.Errorf("english 'languages': %d pages, want 2", got)
+	}
+	// Danish stemming: "hovedstaden" (the capital) stems like "hovedstad".
+	if got := matches("danish", "hovedstaden"); got != 1 {
+		t.Errorf("danish 'hovedstaden': %d pages, want 1", got)
 	}
 
-	// The triggers keep the index in sync with new and deleted pages.
-	if _, err := conn.Exec(`INSERT INTO pages (title, url, content) VALUES ('New', 'https://b', 'fresh words')`); err != nil {
+	// UPDATE recomputes the column.
+	if _, err := conn.Exec(`UPDATE pages SET content = 'Nothing here.' WHERE title = 'København'`); err != nil {
 		t.Fatal(err)
 	}
-	if got := count("fresh"); got != 1 {
-		t.Errorf("inserted page: got %d matches, want 1", got)
-	}
-	if _, err := conn.Exec(`DELETE FROM pages WHERE title = 'New'`); err != nil {
-		t.Fatal(err)
-	}
-	if got := count("fresh"); got != 0 {
-		t.Errorf("deleted page: got %d matches, want 0", got)
+	if got := matches("danish", "hovedstad"); got != 0 {
+		t.Errorf("after update: %d pages, want 0", got)
 	}
 }

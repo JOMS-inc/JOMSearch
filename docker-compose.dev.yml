@@ -12,13 +12,34 @@ services:
       - path: .env
         required: false
     environment:
-      DB_PATH: /data/whoknows.db
+      DATABASE_URL: postgres://postgres:postgres@db:5432/jomsearch?sslmode=disable
       SEARCH_LOG: /logs/searches.log
     volumes:
       - ./go-services:/app
-      - ./db:/data
       - ./logs:/logs
       - go-mod-cache:/go/pkg/mod
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Local PostgreSQL. Production uses Neon instead (see database.md).
+  # Also reachable from the host on :5432, e.g. for `go test` with
+  # TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: jomsearch
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
 
 volumes:
   go-mod-cache:
+  pg-data:

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"unicode"
 
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/searchlog"
 )
@@ -48,25 +49,27 @@ func RegisterSearchRoutes(mux *http.ServeMux, db *sql.DB) {
 	mux.HandleFunc("GET /api/search", SearchHandler(db))
 }
 
-// searchPages finds pages in the given language that match q.
+// searchPages finds pages in the given language that match q, best first.
 //
-// It uses the pages_fts full-text index instead of `content LIKE '%q%'`.
-// A LIKE with a leading % cannot use any index, so SQLite has to read every
-// page. FTS5 keeps an inverted index (word -> pages containing it), so it
-// only looks at pages that actually contain the words, and ranks them by
-// relevance (bm25) instead of returning them in table order.
+// It uses the GIN index on pages.search (see db/migrations) instead of
+// `content LIKE '%q%'`. A LIKE with a leading % cannot use an index, so the
+// database has to read every page. The GIN index maps each word to the
+// pages containing it, so only matching pages are read, and ts_rank orders
+// them by relevance (title matches weigh more than content matches).
 func searchPages(db *sql.DB, q, language string) ([]SearchResult, error) {
-	match := ftsQuery(q)
+	match := tsQuery(q)
 	if match == "" {
 		return nil, nil
 	}
 
+	// The query is stemmed with the same language config as the pages
+	// (danish or english), so "programming" and "programs" both find "program".
 	rows, err := db.Query(`
-		SELECT p.url, p.title, substr(p.content, 1, 200) AS description
-		FROM pages_fts
-		JOIN pages p ON p.rowid = pages_fts.rowid
-		WHERE pages_fts MATCH ? AND p.language = ?
-		ORDER BY pages_fts.rank`,
+		SELECT url, title, substr(content, 1, 200) AS description
+		FROM pages,
+		     to_tsquery(CASE $2 WHEN 'da' THEN 'danish'::regconfig ELSE 'english'::regconfig END, $1) AS q
+		WHERE language = $2 AND search @@ q
+		ORDER BY ts_rank(search, q) DESC, title`,
 		match, language,
 	)
 	if err != nil {
@@ -92,17 +95,25 @@ func searchPages(db *sql.DB, q, language string) ([]SearchResult, error) {
 	return results, nil
 }
 
-// ftsQuery turns user input into a safe FTS5 query.
+// maxQueryWords caps how many words of a search are used.
+const maxQueryWords = 10
+
+// tsQuery turns user input into a safe to_tsquery string.
 //
-// FTS5 has its own query syntax (AND, OR, NOT, *, quotes, ...), so raw input
-// like `foo"` or `NOT` would cause syntax errors. Wrapping the input in
-// double quotes makes it a plain phrase, and inner quotes are escaped by
-// doubling them. The trailing * makes the last word a prefix match, so
-// "prog" still finds "programming", like the old LIKE search did.
-func ftsQuery(q string) string {
-	q = strings.TrimSpace(q)
-	if q == "" {
-		return ""
+// to_tsquery has its own syntax (& | ! <-> : * parentheses), so raw input
+// like `foo(` would be a syntax error. Keeping only runs of letters and
+// digits removes all of it. Each word gets :* (prefix match), so "prog"
+// still finds "programming", and words are joined with & (all must match).
+// Example: `Go (prog` -> `go:* & prog:*`.
+func tsQuery(q string) string {
+	words := strings.FieldsFunc(strings.ToLower(q), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	if len(words) > maxQueryWords {
+		words = words[:maxQueryWords]
 	}
-	return `"` + strings.ReplaceAll(q, `"`, `""`) + `"*`
+	for i, w := range words {
+		words[i] = w + ":*"
+	}
+	return strings.Join(words, " & ")
 }

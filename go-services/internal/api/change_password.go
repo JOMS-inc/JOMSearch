@@ -62,7 +62,7 @@ func ChangePasswordSubmitHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		var stored string
-		if err := db.QueryRow(`SELECT password FROM users WHERE id = ?`, user.ID).Scan(&stored); err != nil {
+		if err := db.QueryRow(`SELECT password FROM users WHERE id = $1`, user.ID).Scan(&stored); err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			return
 		}
@@ -89,7 +89,7 @@ func ChangePasswordSubmitHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		if _, err := db.Exec(
-			`UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?`,
+			`UPDATE users SET password = $1, must_change_password = FALSE WHERE id = $2`,
 			string(hash), user.ID,
 		); err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)

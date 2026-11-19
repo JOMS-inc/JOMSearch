@@ -69,7 +69,7 @@ func LoginSubmitHandler(db *sql.DB) http.HandlerFunc {
 		var email string
 		var stored string
 		var mustChange bool
-		err := db.QueryRow(`SELECT id, email, password, must_change_password FROM users WHERE username = ?`, username).
+		err := db.QueryRow(`SELECT id, email, password, must_change_password FROM users WHERE username = $1`, username).
 			Scan(&id, &email, &stored, &mustChange)
 		if err == sql.ErrNoRows {
 			renderErr("Invalid username or password.")
@@ -88,7 +88,7 @@ func LoginSubmitHandler(db *sql.DB) http.HandlerFunc {
 		// to bcrypt the first time they successfully log in.
 		if looksLikeMD5(stored) {
 			if newHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost); err == nil {
-				if _, err := db.Exec(`UPDATE users SET password = ? WHERE id = ?`, string(newHash), id); err != nil {
+				if _, err := db.Exec(`UPDATE users SET password = $1 WHERE id = $2`, string(newHash), id); err != nil {
 					log.Printf("login: upgrade password hash for user %d: %v", id, err)
 				}
 			}

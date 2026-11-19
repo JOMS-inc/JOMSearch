@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -19,7 +20,7 @@ import (
 )
 
 // Integration tests: the real router, handlers, templates, sessions and a real
-// (temporary, seeded) SQLite database, exercised over HTTP like a browser would.
+// (temporary, seeded) PostgreSQL schema, exercised over HTTP like a browser would.
 //
 // These tests don't use t.Parallel() because the session store and dbConn
 // (see auth.go) are package-level globals shared by all handlers.
@@ -277,7 +278,7 @@ func TestLoginErrors(t *testing.T) {
 func TestLegacyMD5LoginUpgradesHash(t *testing.T) {
 	app := newTestApp(t)
 
-	// The seeded admin user (schema/schema.sql) has an MD5 hash of "password".
+	// The seeded admin user (internal/testdb) has an MD5 hash of "password".
 	status, body := app.postForm(t, "/login", url.Values{"username": {"admin"}, "password": {"password"}})
 	if status != http.StatusOK || !strings.Contains(body, "Log out [admin]") {
 		t.Fatalf("legacy login failed: status %d", status)
@@ -292,13 +293,27 @@ func TestLegacyMD5LoginUpgradesHash(t *testing.T) {
 	}
 }
 
-// TestSearchUsesFullTextIndex makes sure the search query goes through the
-// pages_fts index instead of scanning every row of pages.
+// TestSearchUsesFullTextIndex makes sure the search can use the GIN index
+// on pages.search instead of reading every page.
+//
+// With only a few test rows Postgres would rightly prefer reading the whole
+// table (it is faster than using an index for 3 rows), so sequential scans
+// are switched off for this one connection to see whether the index fits.
 func TestSearchUsesFullTextIndex(t *testing.T) {
 	conn := testdb.New(t)
-	rows, err := conn.Query(`EXPLAIN QUERY PLAN
-		SELECT p.url FROM pages_fts JOIN pages p ON p.rowid = pages_fts.rowid
-		WHERE pages_fts MATCH 'go' AND p.language = 'en'`)
+	ctx := context.Background()
+	c, err := conn.Conn(ctx) // one connection, so SET applies to the EXPLAIN
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close() //nolint:errcheck // returns the connection to the pool
+
+	if _, err := c.ExecContext(ctx, `SET enable_seqscan = off`); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := c.QueryContext(ctx, `EXPLAIN
+		SELECT url FROM pages, to_tsquery('english', 'go:*') AS q
+		WHERE language = 'en' AND search @@ q`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,19 +321,15 @@ func TestSearchUsesFullTextIndex(t *testing.T) {
 
 	var plan []string
 	for rows.Next() {
-		var id, parent, notused int
-		var detail string
-		if err := rows.Scan(&id, &parent, &notused, &detail); err != nil {
+		var line string
+		if err := rows.Scan(&line); err != nil {
 			t.Fatal(err)
 		}
-		plan = append(plan, detail)
+		plan = append(plan, line)
 	}
 	got := strings.Join(plan, "\n")
-	// Expected: look words up in the FTS index, then fetch each matching
-	// page by rowid. A full scan of pages would show up as "SCAN p".
-	if !strings.Contains(got, "SCAN pages_fts VIRTUAL TABLE INDEX") ||
-		!strings.Contains(got, "SEARCH p USING INTEGER PRIMARY KEY") {
-		t.Errorf("search does not use the full-text index, plan:\n%s", got)
+	if !strings.Contains(got, "pages_search_idx") {
+		t.Errorf("search does not use the GIN index, plan:\n%s", got)
 	}
 }
 

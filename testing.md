@@ -16,19 +16,19 @@ We set up a variety of test types instead of covering one type exhaustively. Tes
 |---|---|---|---|---|---|
 | Unit | Password checks (`checkPassword`, `looksLikeMD5`) and input parsing (`parseInput`) | `go-services/internal/api/login_test.go`, `input_test.go` | ✓ | ✓ | |
 | Fuzz | `parseInput` with random bodies; must never panic | `FuzzParseInput` in `input_test.go` | ✓ (seed corpus; full fuzzing by hand) | ✓ (seed corpus) | |
-| Integration | Real router, handlers, templates, sessions and a real SQLite DB over HTTP: pages, search API, register/login/logout, error cases, legacy MD5 → bcrypt upgrade | `internal/api/integration_test.go` | ✓ | ✓ | |
+| Integration | Real router, handlers, templates, sessions and a real PostgreSQL DB over HTTP: pages, search API, register/login/logout, error cases, legacy MD5 → bcrypt upgrade | `internal/api/integration_test.go` | ✓ | ✓ | |
 | Mock | The weather feature with a fake Open-Meteo server: response mapping, bad coordinates, upstream errors | `internal/api/weather_test.go` | ✓ | ✓ | |
 | End-to-end | A real browser (Chromium via Playwright) clicking through search, navigation, layout and the full auth flow | `e2e/tests/*.spec.ts` | ✓ | ✓ (all) | ✓ (`@readonly` only) |
 | Smoke | `/health`, `/`, `/about`, the stylesheet and search respond with 200 | `smoke-test` job in `.github/workflows/cd.yml` | | | ✓ |
 | Static analysis | gofmt, `go vet`, golangci-lint, govulncheck, hadolint, SonarCloud | `.github/workflows/ci.yml` | partly (hook) | ✓ | |
 
-Shared test data: `internal/testdb` builds a database from the real `schema/schema.sql` plus a few known pages. The Go tests use it directly, and the E2E tests get the same data through `go run ./cmd/testdb`.
+Shared test data: `internal/testdb` builds a database from the real migrations (`internal/db/migrations`) plus a few known pages and the legacy admin user. The Go tests use it directly, and the E2E tests get the same data through `go run ./cmd/testdb`. Each Go test gets its own Postgres schema, so test packages can run in parallel against one server. Database tests need `TEST_DATABASE_URL`; without it they are skipped locally, and in CI (where `CI` is set) they fail instead, so they can never be skipped silently there.
 
 ### Why these choices
 
-- **Integration tests are the core of the suite.** Most of our code is HTTP handlers talking to SQLite, so the bugs that matter happen where those parts meet. The tests run the real app in memory (`httptest`), which takes seconds, so they can run before every push.
+- **Integration tests are the core of the suite.** Most of our code is HTTP handlers talking to the database, so the bugs that matter happen where those parts meet. The tests run the real app in memory (`httptest`), which takes seconds, so they can run before every push.
 - **Unit tests only where there is real logic.** The password functions decide who can log in, including the legacy MD5 path, so they get table tests for every branch.
-- **Mocking only external services.** We mock Open-Meteo because it is outside our control: the real API would make tests slow, flaky and dependent on the actual weather. We don't mock our own database, because SQLite in a temp file is fast and tests the real SQL.
+- **Mocking only external services.** We mock Open-Meteo because it is outside our control: the real API would make tests slow, flaky and dependent on the actual weather. We don't mock our own database, because a real Postgres (a service container in CI) is fast enough and tests the real SQL, including the full-text search.
 - **The E2E tests are split with a `@readonly` tag.** Tests that only read also run against production after deploy. Tests that register users only run against the throwaway CI database, so production doesn't fill up with test accounts.
 - **Fuzzing** fits `parseInput`, because it takes untrusted request bodies. It shows the technique at almost no cost.
 

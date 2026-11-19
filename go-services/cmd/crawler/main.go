@@ -3,7 +3,7 @@
 // stores matching Wikipedia articles in the pages table.
 //
 // It is a one-shot job: run it on a schedule (cron) rather than keeping it
-// running. It can run while the web app is serving, see db.Open.
+// running. It can run while the web app is serving.
 //
 //	go run ./cmd/crawler -max-terms 10
 package main
@@ -24,7 +24,7 @@ import (
 )
 
 func main() {
-	dbPath := flag.String("db", getEnv("DB_PATH", "../db/whoknows.db"), "SQLite database")
+	dbURL := flag.String("db", getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/jomsearch?sslmode=disable"), "PostgreSQL connection URL")
 	logPath := flag.String("log", getEnv("SEARCH_LOG", "../logs/searches.log"), "search log written by the web app")
 	maxTerms := flag.Int("max-terms", 20, "most search terms to fetch in this run")
 	perTerm := flag.Int("per-term", 5, "articles to fetch per search term")
@@ -33,13 +33,13 @@ func main() {
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	if err := run(logger, *dbPath, *logPath, *maxTerms, *perTerm, *delay, *refresh); err != nil {
+	if err := run(logger, *dbURL, *logPath, *maxTerms, *perTerm, *delay, *refresh); err != nil {
 		logger.Error("crawl failed", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(logger *slog.Logger, dbPath, logPath string, maxTerms, perTerm int, delay, refresh time.Duration) error {
+func run(logger *slog.Logger, dbURL, logPath string, maxTerms, perTerm int, delay, refresh time.Duration) error {
 	f, err := os.Open(logPath)
 	if err != nil {
 		return err
@@ -50,7 +50,7 @@ func run(logger *slog.Logger, dbPath, logPath string, maxTerms, perTerm int, del
 		return err
 	}
 
-	conn, err := db.Open(dbPath)
+	conn, err := db.Open(dbURL)
 	if err != nil {
 		return err
 	}

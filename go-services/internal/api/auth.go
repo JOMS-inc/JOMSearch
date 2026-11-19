@@ -51,7 +51,7 @@ func currentUser(r *http.Request) *templates.User {
 	}
 
 	var u templates.User
-	err = dbConn.QueryRow(`SELECT id, username, email, must_change_password FROM users WHERE email = ?`, email).
+	err = dbConn.QueryRow(`SELECT id, username, email, must_change_password FROM users WHERE email = $1`, email).
 		Scan(&u.ID, &u.Username, &u.Email, &u.MustChangePassword)
 	if err != nil {
 		return nil

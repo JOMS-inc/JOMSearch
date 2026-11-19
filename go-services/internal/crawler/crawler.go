@@ -5,8 +5,8 @@
 // term returns the best matching articles with their intro as plain text.
 // That is far less load on Wikipedia than downloading whole pages, it is what
 // their bot policy asks for, and it does not break when the page layout
-// changes. New pages are picked up by the full-text index automatically,
-// because the pages_fts triggers run on every INSERT.
+// changes. New pages are searchable at once: Postgres fills the generated
+// pages.search column and its GIN index on every INSERT.
 package crawler
 
 import (
@@ -115,7 +115,7 @@ func validTerm(t searchlog.Term) bool {
 func (c *Crawler) crawledRecently(t searchlog.Term) (bool, error) {
 	var at time.Time
 	err := c.DB.QueryRow(
-		`SELECT crawled_at FROM crawled_terms WHERE query = ? AND language = ?`,
+		`SELECT crawled_at FROM crawled_terms WHERE query = $1 AND language = $2`,
 		t.Query, t.Language,
 	).Scan(&at)
 	if err == sql.ErrNoRows {
@@ -215,7 +215,7 @@ func (c *Crawler) store(t searchlog.Term, articles []Article) (int, error) {
 	for _, a := range articles {
 		res, err := tx.Exec(
 			`INSERT INTO pages (title, url, language, last_updated, content)
-			 VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+			 VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING`,
 			a.Title, a.URL, t.Language, now, a.Extract,
 		)
 		if err != nil {
@@ -226,7 +226,7 @@ func (c *Crawler) store(t searchlog.Term, articles []Article) (int, error) {
 	}
 
 	if _, err := tx.Exec(
-		`INSERT INTO crawled_terms (query, language, crawled_at, pages_added) VALUES (?, ?, ?, ?)
+		`INSERT INTO crawled_terms (query, language, crawled_at, pages_added) VALUES ($1, $2, $3, $4)
 		 ON CONFLICT (query, language) DO UPDATE SET crawled_at = excluded.crawled_at, pages_added = excluded.pages_added`,
 		t.Query, t.Language, now, added,
 	); err != nil {

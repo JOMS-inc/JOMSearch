@@ -1,154 +1,64 @@
+// Package db connects to PostgreSQL and keeps its schema up to date.
 package db
 
 import (
+	"context"
 	"database/sql"
+	"embed"
+	"fmt"
+	"io/fs"
+	"log/slog"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" database/sql driver
+	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/lock"
 )
 
-// Open opens the SQLite file at path.
+// The migration files are compiled into the binary, so the image needs no
+// extra files and the schema always matches the code that uses it.
 //
-// Two settings make it safe for the web app and the crawler to use the same
-// file at the same time:
-//   - WAL (write-ahead log): readers keep reading while a writer writes,
-//     instead of being blocked by it.
-//   - busy_timeout: a second writer waits up to 5s for the lock instead of
-//     failing at once with "database is locked".
-func Open(path string) (*sql.DB, error) {
-	dsn := path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
-	conn, err := sql.Open("sqlite", dsn)
+//go:embed migrations/*.sql
+var migrations embed.FS
+
+// Open connects to the PostgreSQL database at url, e.g.
+// postgres://user:pass@host:5432/jomsearch?sslmode=require
+func Open(url string) (*sql.DB, error) {
+	conn, err := sql.Open("pgx", url)
 	if err != nil {
 		return nil, err
 	}
-
 	if err := conn.Ping(); err != nil {
+		conn.Close()
 		return nil, err
 	}
-
 	return conn, nil
 }
 
-// Migrate applies schema changes the production database may be missing.
-// The prod DB only lives on the server, so the app upgrades it on startup.
-// Every step checks first, so running it again is a no-op.
+// Migrate applies the migrations in migrations/ that have not run yet.
+//
+// The web app and the crawler both call it on startup. A Postgres advisory
+// lock makes sure only one of them migrates at a time, so it is also safe
+// with several app replicas starting together.
 func Migrate(conn *sql.DB) error {
-	if err := migrateMustChangePassword(conn); err != nil {
-		return err
-	}
-	if err := migrateFullTextIndex(conn); err != nil {
-		return err
-	}
-	_, err := conn.Exec(crawledTermsSchema)
-	return err
-}
-
-// crawledTermsSchema remembers which searches the crawler already handled,
-// so a new run skips them (until they are older than its refresh window)
-// and an interrupted run can simply be started again.
-const crawledTermsSchema = `
-CREATE TABLE IF NOT EXISTS crawled_terms (
-    query TEXT NOT NULL,
-    language TEXT NOT NULL,
-    crawled_at TIMESTAMP NOT NULL,
-    pages_added INTEGER NOT NULL,
-    PRIMARY KEY (query, language)
-);`
-
-func migrateMustChangePassword(conn *sql.DB) error {
-	has, err := hasColumn(conn, "users", "must_change_password")
-	if err != nil || has {
-		return err
-	}
-
-	// The column is added once, right after the breach: every user that
-	// exists at that point is flagged and must pick a new password.
-	// Users registered later get the default 0.
-	tx, err := conn.Begin()
+	sub, err := fs.Sub(migrations, "migrations")
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback() //nolint:errcheck // no-op after Commit
-
-	if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`UPDATE users SET must_change_password = 1`); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
-// ftsSchema is the full-text index on pages, the same as in schema/schema.sql.
-// pages_fts is an "external content" table: it only stores the index, the
-// text itself stays in pages. The triggers keep the index in sync whenever
-// a page is inserted, updated or deleted.
-const ftsSchema = `
-CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(
-    title,
-    content,
-    content='pages',
-    content_rowid='rowid',
-    tokenize='unicode61 remove_diacritics 2'
-);
-
-CREATE TRIGGER IF NOT EXISTS pages_ai AFTER INSERT ON pages BEGIN
-    INSERT INTO pages_fts(rowid, title, content)
-    VALUES (new.rowid, new.title, new.content);
-END;
-
-CREATE TRIGGER IF NOT EXISTS pages_ad AFTER DELETE ON pages BEGIN
-    INSERT INTO pages_fts(pages_fts, rowid, title, content)
-    VALUES ('delete', old.rowid, old.title, old.content);
-END;
-
-CREATE TRIGGER IF NOT EXISTS pages_au AFTER UPDATE ON pages BEGIN
-    INSERT INTO pages_fts(pages_fts, rowid, title, content)
-    VALUES ('delete', old.rowid, old.title, old.content);
-    INSERT INTO pages_fts(rowid, title, content)
-    VALUES (new.rowid, new.title, new.content);
-END;
-`
-
-// migrateFullTextIndex adds the pages_fts index to databases created before
-// it existed, and fills it with the pages that are already there.
-func migrateFullTextIndex(conn *sql.DB) error {
-	var n int
-	err := conn.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'pages_fts'`).Scan(&n)
-	if err != nil || n > 0 {
-		return err
-	}
-
-	tx, err := conn.Begin()
+	// Retry the lock every second (default: every 5s) for up to 5 minutes.
+	locker, err := lock.NewPostgresSessionLocker(lock.WithLockTimeout(1, 300))
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback() //nolint:errcheck // no-op after Commit
-
-	if _, err := tx.Exec(ftsSchema); err != nil {
-		return err
-	}
-	// 'rebuild' indexes every existing row in pages.
-	if _, err := tx.Exec(`INSERT INTO pages_fts(pages_fts) VALUES ('rebuild')`); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
-func hasColumn(conn *sql.DB, table, column string) (bool, error) {
-	rows, err := conn.Query(`SELECT name FROM pragma_table_info(?)`, table)
+	provider, err := goose.NewProvider(goose.DialectPostgres, conn, sub, goose.WithSessionLocker(locker))
 	if err != nil {
-		return false, err
+		return err
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return false, err
-		}
-		if name == column {
-			return true, nil
-		}
+	results, err := provider.Up(context.Background())
+	if err != nil {
+		return fmt.Errorf("migrate: %w", err)
 	}
-	return false, rows.Err()
+	for _, r := range results {
+		slog.Info("applied migration", "version", r.Source.Version, "file", r.Source.Path, "took", r.Duration)
+	}
+	return nil
 }
