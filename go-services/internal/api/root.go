@@ -30,7 +30,7 @@ func Root(db *sql.DB) http.HandlerFunc {
 			language = "en"
 		}
 
-		results, err := searchPages(db, q, language)
+		results, err := searchPages(db, q, language, "html")
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			return

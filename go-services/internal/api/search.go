@@ -6,8 +6,10 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 	"unicode"
 
+	"github.com/JOMS-inc/JOMSearch/go-services/internal/metrics"
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/searchlog"
 )
 
@@ -31,7 +33,7 @@ func SearchHandler(db *sql.DB) http.HandlerFunc {
 			language = "en"
 		}
 
-		results, err := searchPages(db, q, language)
+		results, err := searchPages(db, q, language, "api")
 		if err != nil {
 			http.Error(w, "database error", http.StatusInternalServerError)
 			return
@@ -50,18 +52,20 @@ func RegisterSearchRoutes(mux *http.ServeMux, db *sql.DB) {
 }
 
 // searchPages finds pages in the given language that match q, best first.
+// source ("html" or "api") is only used to label the search metrics.
 //
 // It uses the GIN index on pages.search (see db/migrations) instead of
 // `content LIKE '%q%'`. A LIKE with a leading % cannot use an index, so the
 // database has to read every page. The GIN index maps each word to the
 // pages containing it, so only matching pages are read, and ts_rank orders
 // them by relevance (title matches weigh more than content matches).
-func searchPages(db *sql.DB, q, language string) ([]SearchResult, error) {
+func searchPages(db *sql.DB, q, language, source string) ([]SearchResult, error) {
 	match := tsQuery(q)
 	if match == "" {
 		return nil, nil
 	}
 
+	start := time.Now()
 	// The query is stemmed with the same language config as the pages
 	// (danish or english), so "programming" and "programs" both find "program".
 	rows, err := db.Query(`
@@ -92,6 +96,9 @@ func searchPages(db *sql.DB, q, language string) ([]SearchResult, error) {
 	// Log after the query so the line includes how many results it found.
 	// Searches with 0 results show what content is missing.
 	searchlog.Log(searchLogger, q, language, len(results))
+	metrics.SearchDuration.WithLabelValues(language).Observe(time.Since(start).Seconds())
+	metrics.SearchResults.Observe(float64(len(results)))
+	metrics.Searches.WithLabelValues(language, source, metrics.Outcome(len(results))).Inc()
 	return results, nil
 }
 

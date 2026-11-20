@@ -40,6 +40,32 @@ services:
       timeout: 5s
       retries: 15
 
+  # Monitoring, same as production but with ports open for local testing:
+  # Prometheus http://localhost:9090, Grafana http://localhost:3000 (admin/admin).
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    mem_limit: 256m
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+    mem_limit: 256m
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
 volumes:
   go-mod-cache:
   pg-data:

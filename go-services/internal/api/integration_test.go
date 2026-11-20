@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,9 +13,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
+
+	"github.com/JOMS-inc/JOMSearch/go-services/internal/metrics"
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/searchlog"
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/testdb"
 )
@@ -157,8 +162,69 @@ func TestSearchPageShowsResults(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200", status)
 	}
-	if !strings.Contains(body, `href="https://en.wikipedia.org/wiki/SQLite"`) {
-		t.Error("search page does not link to the SQLite result")
+	// Results link through /go (click tracking), which must redirect to the page.
+	m := regexp.MustCompile(`class="search-result-title" href="([^"]+)"`).FindStringSubmatch(body)
+	if m == nil {
+		t.Fatal("search page has no result link")
+	}
+	href := html.UnescapeString(m[1])
+	if !strings.HasPrefix(href, "/go?") || !strings.Contains(href, "rank=1") {
+		t.Fatalf("result href = %q, want /go?...&rank=1", href)
+	}
+	if loc := app.redirectTarget(t, href); loc != "https://en.wikipedia.org/wiki/SQLite" {
+		t.Errorf("/go redirects to %q, want the SQLite page", loc)
+	}
+}
+
+// redirectTarget GETs path without following redirects and returns Location.
+func (a *testApp) redirectTarget(t *testing.T, path string) string {
+	t.Helper()
+	c := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := c.Get(a.srv.URL + path)
+	if err != nil {
+		t.Fatalf("GET %s: %v", path, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("GET %s: status = %d, want 302", path, resp.StatusCode)
+	}
+	return resp.Header.Get("Location")
+}
+
+func TestClickCountsAndRefusesUnknownURLs(t *testing.T) {
+	app := newTestApp(t)
+	clicks := metrics.ResultClicks.WithLabelValues("en", "1")
+	before := testutil.ToFloat64(clicks)
+
+	target := "https://en.wikipedia.org/wiki/SQLite"
+	if loc := app.redirectTarget(t, "/go?rank=1&url="+url.QueryEscape(target)); loc != target {
+		t.Errorf("Location = %q, want %q", loc, target)
+	}
+	if got := testutil.ToFloat64(clicks) - before; got != 1 {
+		t.Errorf("clicks increased by %v, want 1", got)
+	}
+
+	// Not in the pages table: must not redirect (no open redirect).
+	status, _ := app.get(t, "/go?rank=1&url="+url.QueryEscape("https://evil.example"))
+	if status != http.StatusBadRequest {
+		t.Errorf("unknown url: status = %d, want 400", status)
+	}
+}
+
+func TestSearchCountsOutcome(t *testing.T) {
+	app := newTestApp(t)
+	hits := metrics.Searches.WithLabelValues("en", "api", "hit")
+	zero := metrics.Searches.WithLabelValues("en", "api", "zero")
+	h0, z0 := testutil.ToFloat64(hits), testutil.ToFloat64(zero)
+
+	app.get(t, "/api/search?q=SQLite")
+	app.get(t, "/api/search?q=qwxzzy")
+
+	if got := testutil.ToFloat64(hits) - h0; got != 1 {
+		t.Errorf("hit searches increased by %v, want 1", got)
+	}
+	if got := testutil.ToFloat64(zero) - z0; got != 1 {
+		t.Errorf("zero-result searches increased by %v, want 1", got)
 	}
 }
 

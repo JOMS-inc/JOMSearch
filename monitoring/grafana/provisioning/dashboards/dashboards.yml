@@ -1,0 +1,11 @@
+# Loads every dashboard JSON in /var/lib/grafana/dashboards. The dashboard is
+# kept in git, so edit it in the UI, export the JSON and commit it here.
+apiVersion: 1
+
+providers:
+  - name: jomsearch
+    folder: JOMSearch
+    type: file
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

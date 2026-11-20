@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/JOMS-inc/JOMSearch/go-services/internal/metrics"
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/templates"
 )
 
@@ -53,6 +54,7 @@ func LoginSubmitHandler(db *sql.DB) http.HandlerFunc {
 		password := r.FormValue("password")
 
 		renderErr := func(msg string) {
+			metrics.Logins.WithLabelValues("failure").Inc()
 			data := loginPageData{Error: msg, Username: username}
 			w.WriteHeader(http.StatusUnauthorized)
 			if err := loginTmpl.ExecuteTemplate(w, "layout.html", data); err != nil {
@@ -98,6 +100,7 @@ func LoginSubmitHandler(db *sql.DB) http.HandlerFunc {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
+		metrics.Logins.WithLabelValues("success").Inc()
 
 		if mustChange {
 			http.Redirect(w, r, "/change-password", http.StatusSeeOther)

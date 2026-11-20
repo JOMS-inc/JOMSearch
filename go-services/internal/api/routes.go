@@ -14,6 +14,8 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 
 	mux.HandleFunc("GET /search", Root(db))
 
+	mux.HandleFunc("GET /go", ClickHandler(db))
+
 	mux.HandleFunc("GET /register", RegisterHandler)
 	mux.HandleFunc("POST /api/register", RegisterSubmitHandler(db))
 

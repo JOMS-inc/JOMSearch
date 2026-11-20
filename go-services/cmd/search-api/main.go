@@ -7,12 +7,14 @@ import (
 
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/api"
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/db"
+	"github.com/JOMS-inc/JOMSearch/go-services/internal/metrics"
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/searchlog"
 )
 
 func main() {
 	dbURL := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/jomsearch?sslmode=disable")
 	port := getEnv("PORT", "8080")
+	metricsPort := getEnv("METRICS_PORT", "2112")
 	searchLogPath := getEnv("SEARCH_LOG", "../logs/searches.log")
 
 	conn, err := db.Open(dbURL)
@@ -41,8 +43,17 @@ func main() {
 	api.RegisterSearchRoutes(mux, conn)
 	api.SetDB(conn) // required so currentUser() can look users up
 
+	// /metrics gets its own port. The app port is public (nginx and :8080),
+	// while this one is only reachable by Prometheus on the Docker network.
+	go func() {
+		metricsMux := http.NewServeMux()
+		metricsMux.Handle("GET /metrics", metrics.Handler())
+		log.Println("metrics on :" + metricsPort)
+		log.Fatal(http.ListenAndServe(":"+metricsPort, metricsMux))
+	}()
+
 	log.Println("listening on :" + port)
-	log.Fatal(http.ListenAndServe(":"+port, api.RequirePasswordChange(mux)))
+	log.Fatal(http.ListenAndServe(":"+port, api.Instrument(api.RequirePasswordChange(mux))))
 }
 
 // getEnv returns the value of the environment variable key, or fallback if it is unset.

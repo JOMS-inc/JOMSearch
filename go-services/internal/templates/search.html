@@ -7,10 +7,11 @@
 </div>
 
 <div id="results">
-  {{range .SearchResults}}
+  {{range $i, $r := .SearchResults}}
   <div>
-      <h2><a class="search-result-title" href="{{.URL}}">{{.Title}}</a></h2>
-      <p class="search-result-description">{{.Description}}</p>
+      {{/* Goes through /go so result clicks can be counted (see api/click.go). */}}
+      <h2><a class="search-result-title" href="/go?url={{$r.URL}}&rank={{inc $i}}">{{$r.Title}}</a></h2>
+      <p class="search-result-description">{{$r.Description}}</p>
   </div>
   {{end}}
 </div>
