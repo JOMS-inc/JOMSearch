@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/JOMS-inc/JOMSearch/go-services/internal/metrics"
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/templates"
 )
 
@@ -69,10 +70,12 @@ func RegisterSubmitHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		if username == "" || email == "" || password == "" {
+			metrics.Registrations.WithLabelValues("invalid").Inc()
 			renderErr("All fields are required.", http.StatusUnprocessableEntity)
 			return
 		}
 		if password != password2 {
+			metrics.Registrations.WithLabelValues("invalid").Inc()
 			renderErr("Passwords do not match.", http.StatusUnprocessableEntity)
 			return
 		}
@@ -91,6 +94,7 @@ func RegisterSubmitHandler(db *sql.DB) http.HandlerFunc {
 			// 23505 is Postgres' error code for a UNIQUE constraint violation.
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				metrics.Registrations.WithLabelValues("taken").Inc()
 				renderErr("Username or email already taken.", http.StatusConflict)
 				return
 			}
@@ -102,6 +106,7 @@ func RegisterSubmitHandler(db *sql.DB) http.HandlerFunc {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
+		metrics.Registrations.WithLabelValues("success").Inc()
 
 		http.Redirect(w, r, "/search", http.StatusSeeOther)
 	}

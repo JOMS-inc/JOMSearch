@@ -22,6 +22,7 @@ browser ──> nginx (TLS) ──> search-api (Go) ──> PostgreSQL on Neon
 More detail:
 - [database.md](database.md): why Postgres and Neon, the indexes, the ORM and migration-tool research, the cutover runbook and backups.
 - [testing.md](testing.md): which kinds of tests we have and why.
+- [monitoring.md](monitoring.md): Prometheus and Grafana, which user metrics we collect and why.
 - [branching_strategy.md](branching_strategy.md): how we use branches.
 
 ## Running with Docker
@@ -67,6 +68,8 @@ server. `.env` lives only on the server and is never copied or committed.
 | `SEARCH_LOG`     | `../logs/searches.log` | Where searches are logged (read by the crawler) |
 | `CRAWLER_CONTACT`| none                | Contact sent in the crawler's User-Agent |
 | `PORT`           | `8080`              | Port the server listens on           |
+| `METRICS_PORT`   | `2112`              | Port for Prometheus `/metrics` (not public) |
+| `GF_SECURITY_ADMIN_PASSWORD` | none (required in prod) | Grafana admin password, see [monitoring.md](monitoring.md) |
 
 Put quotes around `DATABASE_URL` in `.env` (`DATABASE_URL='postgres://...&...'`).
 Without them, bash treats the `&` as "run in background" when you `source` the

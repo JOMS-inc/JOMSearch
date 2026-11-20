@@ -1,0 +1,9 @@
+# Prometheus scrapes the app's /metrics endpoint on the internal Docker
+# network. Port 2112 is not published, so /metrics is never public.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: jomsearch
+    static_configs:
+      - targets: ["app:2112"]
