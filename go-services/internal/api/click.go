@@ -17,9 +17,11 @@ import (
 // so the endpoint can't be used as an open redirect to a phishing site.
 func ClickHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		target := r.URL.Query().Get("url")
-		var language string
-		err := db.QueryRow(`SELECT language FROM pages WHERE url = $1`, target).Scan(&language)
+		// Redirect to the URL as stored in our database, never to the raw
+		// query parameter: only pages we indexed can be redirect targets.
+		var target, language string
+		err := db.QueryRow(`SELECT url, language FROM pages WHERE url = $1`, r.URL.Query().Get("url")).
+			Scan(&target, &language)
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "unknown url", http.StatusBadRequest)
 			return
