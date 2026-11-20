@@ -9,7 +9,7 @@ import (
 	"github.com/JOMS-inc/JOMSearch/go-services/internal/metrics"
 )
 
-// ClickHandler handles GET /go?url=...&rank=N&language=xx.
+// ClickHandler handles GET /go?url=...&rank=N.
 //
 // Search result links point here instead of straight at Wikipedia, so we can
 // count which results people actually open (click-through rate). It only
