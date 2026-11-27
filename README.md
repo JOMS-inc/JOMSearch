@@ -23,6 +23,7 @@ More detail:
 - [database.md](database.md): why Postgres and Neon, the indexes, the ORM and migration-tool research, the cutover runbook and backups.
 - [testing.md](testing.md): which kinds of tests we have and why.
 - [monitoring.md](monitoring.md): Prometheus and Grafana, which user metrics we collect and why.
+- [SLA.md](SLA.md): service level agreement (uptime, latency, incident response, security).
 - [branching_strategy.md](branching_strategy.md): how we use branches.
 
 ## Running with Docker
